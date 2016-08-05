@@ -4,14 +4,6 @@ import (
 	"strings"
 )
 
-// CreateEndpoints creates a list of endpoints given the right scheme
-func CreateEndpoints(addrs []string, scheme string) (entries []string) {
-	for _, addr := range addrs {
-		entries = append(entries, scheme+"://"+addr)
-	}
-	return entries
-}
-
 // Normalize the key for each store to the form:
 //
 //     /path/to/key

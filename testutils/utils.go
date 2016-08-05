@@ -55,7 +55,7 @@ func testPutGetDeleteExists(t *testing.T, kv store.Store) {
 	pair, err := kv.Get("testPutGetDelete_not_exist_key")
 	assert.Equal(t, store.ErrKeyNotFound, err)
 
-	value := []byte("bar")
+	value := "bar"
 	for _, key := range []string{
 		"testPutGetDeleteExists",
 		"testPutGetDeleteExists/",
@@ -75,7 +75,6 @@ func testPutGetDeleteExists(t *testing.T, kv store.Store) {
 			assert.NotNil(t, pair.Value, failMsg)
 		}
 		assert.Equal(t, pair.Value, value, failMsg)
-		assert.NotEqual(t, pair.LastIndex, 0, failMsg)
 
 		// Exists should return true
 		exists, err := kv.Exists(key)
@@ -100,14 +99,17 @@ func testPutGetDeleteExists(t *testing.T, kv store.Store) {
 
 func testWatch(t *testing.T, kv store.Store) {
 	key := "testWatch"
-	value := []byte("world")
-	newValue := []byte("world!")
+	value := "world"
+	newValue := "world!"
 
 	// Put the key
 	err := kv.Put(key, value, nil)
 	assert.NoError(t, err)
 
-	stopCh := make(<-chan struct{})
+	stopCh := make(chan struct{})
+	defer func() {
+		stopCh <- struct{}{}
+	}()
 	events, err := kv.Watch(key, stopCh)
 	assert.NoError(t, err)
 	assert.NotNil(t, events)
@@ -136,13 +138,22 @@ func testWatch(t *testing.T, kv store.Store) {
 		select {
 		case event := <-events:
 			assert.NotNil(t, event)
+			//assert.NotNil(t, event.PreNode)
+			assert.NotNil(t, event.Node)
+
 			if eventCount == 1 {
-				assert.Equal(t, event.Key, key)
-				assert.Equal(t, event.Value, value)
+				assert.Equal(t, event.Action, store.ACTION_PUT)
+				//assert.Equal(t, event.PreNode.Key, key)
+				//assert.Equal(t, event.PreNode.Value, value)
+				assert.Equal(t, event.Node.Key, key)
+				assert.Equal(t, event.Node.Value, newValue)
 			} else {
-				assert.Equal(t, event.Key, key)
-				assert.Equal(t, event.Value, newValue)
+				//assert.Equal(t, event.PreNode.Key, key)
+				//assert.Equal(t, event.PreNode.Value, newValue)
+				assert.Equal(t, event.Node.Key, key)
+				assert.Equal(t, event.Node.Value, newValue)
 			}
+
 			eventCount++
 			// We received all the events we wanted to check
 			if eventCount >= 4 {
@@ -159,22 +170,25 @@ func testWatchTree(t *testing.T, kv store.Store) {
 	dir := "testWatchTree"
 
 	node1 := "testWatchTree/node1"
-	value1 := []byte("node1")
+	value1 := "node1"
 
 	node2 := "testWatchTree/node2"
-	value2 := []byte("node2")
+	value2 := "node2"
 
 	node3 := "testWatchTree/node3"
-	value3 := []byte("node3")
+	value3 := "node3"
 
 	err := kv.Put(node1, value1, nil)
 	assert.NoError(t, err)
+
 	err = kv.Put(node2, value2, nil)
 	assert.NoError(t, err)
+
 	err = kv.Put(node3, value3, nil)
 	assert.NoError(t, err)
 
-	stopCh := make(<-chan struct{})
+	stopCh := make(chan struct{})
+	defer close(stopCh)
 	events, err := kv.WatchTree(dir, stopCh)
 	assert.NoError(t, err)
 	assert.NotNil(t, events)
@@ -193,17 +207,13 @@ func testWatchTree(t *testing.T, kv store.Store) {
 	}()
 
 	// Check for updates
-	eventCount := 1
 	for {
 		select {
 		case event := <-events:
 			assert.NotNil(t, event)
 			// We received the Delete event on a child node
 			// Exit test successfully
-			if eventCount == 2 {
-				return
-			}
-			eventCount++
+			return
 		case <-time.After(4 * time.Second):
 			t.Fatal("Timeout reached")
 			return
@@ -213,7 +223,7 @@ func testWatchTree(t *testing.T, kv store.Store) {
 
 func testAtomicPut(t *testing.T, kv store.Store) {
 	key := "testAtomicPut"
-	value := []byte("world")
+	value := "world"
 
 	// Put the key
 	err := kv.Put(key, value, nil)
@@ -226,35 +236,29 @@ func testAtomicPut(t *testing.T, kv store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, value)
-	assert.NotEqual(t, pair.LastIndex, 0)
 
 	// This CAS should fail: previous exists.
-	success, _, err := kv.AtomicPut(key, []byte("WORLD"), nil, nil)
+	err = kv.AtomicPut(key, "WORLD", nil, nil)
 	assert.Error(t, err)
-	assert.False(t, success)
 
 	// This CAS should succeed
-	success, _, err = kv.AtomicPut(key, []byte("WORLD"), pair, nil)
+	err = kv.AtomicPut(key, "WORLD", pair, nil)
 	assert.NoError(t, err)
-	assert.True(t, success)
 
 	// This CAS should fail, key exists.
-	pair.LastIndex = 6744
-	success, _, err = kv.AtomicPut(key, []byte("WORLDWORLD"), pair, nil)
+	err = kv.AtomicPut(key, "WORLDWORLD", pair, nil)
 	assert.Error(t, err)
-	assert.False(t, success)
 }
 
 func testAtomicPutCreate(t *testing.T, kv store.Store) {
 	// Use a key in a new directory to ensure Stores will create directories
 	// that don't yet exist.
 	key := "testAtomicPutCreate/create"
-	value := []byte("putcreate")
+	value := "putcreate"
 
 	// AtomicPut the key, previous = nil indicates create.
-	success, _, err := kv.AtomicPut(key, value, nil, nil)
+	err := kv.AtomicPut(key, value, nil, nil)
 	assert.NoError(t, err)
-	assert.True(t, success)
 
 	// Get should return the value and an incremented index
 	pair, err := kv.Get(key)
@@ -265,26 +269,23 @@ func testAtomicPutCreate(t *testing.T, kv store.Store) {
 	assert.Equal(t, pair.Value, value)
 
 	// Attempting to create again should fail.
-	success, _, err = kv.AtomicPut(key, value, nil, nil)
+	err = kv.AtomicPut(key, value, nil, nil)
 	assert.Error(t, store.ErrKeyExists)
-	assert.False(t, success)
 
 	// This CAS should succeed, since it has the value from Get()
-	success, _, err = kv.AtomicPut(key, []byte("PUTCREATE"), pair, nil)
+	err = kv.AtomicPut(key, "PUTCREATE", pair, nil)
 	assert.NoError(t, err)
-	assert.True(t, success)
 }
 
 func testAtomicPutWithSlashSuffixKey(t *testing.T, kv store.Store) {
 	k1 := "testAtomicPutWithSlashSuffixKey/key/"
-	success, _, err := kv.AtomicPut(k1, []byte{}, nil, nil)
+	err := kv.AtomicPut(k1, "", nil, nil)
 	assert.Nil(t, err)
-	assert.True(t, success)
 }
 
 func testAtomicDelete(t *testing.T, kv store.Store) {
 	key := "testAtomicDelete"
-	value := []byte("world")
+	value := "world"
 
 	// Put the key
 	err := kv.Put(key, value, nil)
@@ -297,41 +298,26 @@ func testAtomicDelete(t *testing.T, kv store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, value)
-	assert.NotEqual(t, pair.LastIndex, 0)
-
-	tempIndex := pair.LastIndex
-
-	// AtomicDelete should fail
-	pair.LastIndex = 6744
-	success, err := kv.AtomicDelete(key, pair)
-	assert.Error(t, err)
-	assert.False(t, success)
 
 	// AtomicDelete should succeed
-	pair.LastIndex = tempIndex
-	success, err = kv.AtomicDelete(key, pair)
+	err = kv.AtomicDelete(key, pair)
 	assert.NoError(t, err)
-	assert.True(t, success)
 
 	// Delete a non-existent key; should fail
-	success, err = kv.AtomicDelete(key, pair)
+	err = kv.AtomicDelete(key, pair)
 	assert.Error(t, store.ErrKeyNotFound)
-	assert.False(t, success)
 }
 
 func testLockUnlock(t *testing.T, kv store.Store) {
 	key := "testLockUnlock"
-	value := []byte("bar")
+	value := "bar"
 
 	// We should be able to create a new lock on key
-	lock, err := kv.NewLock(key, &store.LockOptions{Value: value, TTL: 2 * time.Second})
-	assert.NoError(t, err)
+	lock := kv.NewLock(key, nil)
 	assert.NotNil(t, lock)
 
 	// Lock should successfully succeed or block
-	lockChan, err := lock.Lock(nil)
-	assert.NoError(t, err)
-	assert.NotNil(t, lockChan)
+	lock.Lock()
 
 	// Get should work
 	pair, err := kv.Get(key)
@@ -340,16 +326,12 @@ func testLockUnlock(t *testing.T, kv store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, value)
-	assert.NotEqual(t, pair.LastIndex, 0)
 
 	// Unlock should succeed
-	err = lock.Unlock()
-	assert.NoError(t, err)
+	lock.Unlock()
 
 	// Lock should succeed again
-	lockChan, err = lock.Lock(nil)
-	assert.NoError(t, err)
-	assert.NotNil(t, lockChan)
+	lock.Lock()
 
 	// Get should work
 	pair, err = kv.Get(key)
@@ -358,31 +340,27 @@ func testLockUnlock(t *testing.T, kv store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, value)
-	assert.NotEqual(t, pair.LastIndex, 0)
 
-	err = lock.Unlock()
-	assert.NoError(t, err)
+	lock.Unlock()
 }
 
 func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	key := "testLockTTL"
-	value := []byte("bar")
+	value := "bar"
 
 	renewCh := make(chan struct{})
 
 	// We should be able to create a new lock on key
-	lock, err := otherConn.NewLock(key, &store.LockOptions{
+	lock := otherConn.NewLock(key, &store.LockOptions{
 		Value:     value,
 		TTL:       2 * time.Second,
 		RenewLock: renewCh,
 	})
-	assert.NoError(t, err)
+
 	assert.NotNil(t, lock)
 
 	// Lock should successfully succeed
-	lockChan, err := lock.Lock(nil)
-	assert.NoError(t, err)
-	assert.NotNil(t, lockChan)
+	lock.Lock()
 
 	// Get should work
 	pair, err := otherConn.Get(key)
@@ -391,30 +369,28 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, value)
-	assert.NotEqual(t, pair.LastIndex, 0)
 
 	time.Sleep(3 * time.Second)
 
 	done := make(chan struct{})
 	stop := make(chan struct{})
 
-	value = []byte("foobar")
+	value = "foobar"
 
 	// Create a new lock with another connection
-	lock, err = kv.NewLock(
+	lock = kv.NewLock(
 		key,
 		&store.LockOptions{
 			Value: value,
 			TTL:   3 * time.Second,
 		},
 	)
-	assert.NoError(t, err)
 	assert.NotNil(t, lock)
 
 	// Lock should block, the session on the lock
 	// is still active and renewed periodically
 	go func(<-chan struct{}) {
-		_, _ = lock.Lock(stop)
+		lock.Lock()
 		done <- struct{}{}
 	}(done)
 
@@ -439,9 +415,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 
 	// Lock should now succeed for the other client
 	go func(<-chan struct{}) {
-		lockChan, err = lock.Lock(nil)
-		assert.NoError(t, err)
-		assert.NotNil(t, lockChan)
+		lock.Lock()
 		locked <- struct{}{}
 	}(locked)
 
@@ -459,18 +433,16 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, value)
-	assert.NotEqual(t, pair.LastIndex, 0)
 
-	err = lock.Unlock()
-	assert.NoError(t, err)
+	lock.Unlock()
 }
 
 func testPutTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	firstKey := "testPutTTL"
-	firstValue := []byte("foo")
+	firstValue := "foo"
 
 	secondKey := "second"
-	secondValue := []byte("bar")
+	secondValue := "bar"
 
 	// Put the first key with the Ephemeral flag
 	err := otherConn.Put(firstKey, firstValue, &store.WriteOptions{TTL: 2 * time.Second})
@@ -511,10 +483,10 @@ func testList(t *testing.T, kv store.Store) {
 	prefix := "testList"
 
 	firstKey := "testList/first"
-	firstValue := []byte("first")
+	firstValue := "first"
 
 	secondKey := "testList/second"
-	secondValue := []byte("second")
+	secondValue := "second"
 
 	// Put the first key
 	err := kv.Put(firstKey, firstValue, nil)
@@ -553,10 +525,10 @@ func testDeleteTree(t *testing.T, kv store.Store) {
 	prefix := "testDeleteTree"
 
 	firstKey := "testDeleteTree/first"
-	firstValue := []byte("first")
+	firstValue := "first"
 
 	secondKey := "testDeleteTree/second"
-	secondValue := []byte("second")
+	secondValue := "second"
 
 	// Put the first key
 	err := kv.Put(firstKey, firstValue, nil)
@@ -573,7 +545,6 @@ func testDeleteTree(t *testing.T, kv store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, firstValue)
-	assert.NotEqual(t, pair.LastIndex, 0)
 
 	// Get should work on the second Key
 	pair, err = kv.Get(secondKey)
@@ -582,7 +553,6 @@ func testDeleteTree(t *testing.T, kv store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, secondValue)
-	assert.NotEqual(t, pair.LastIndex, 0)
 
 	// Delete Values under directory `nodes`
 	err = kv.DeleteTree(prefix)

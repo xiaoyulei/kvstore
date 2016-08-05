@@ -9,6 +9,10 @@ import (
 const (
 	// ETCD backend
 	ETCD = "etcd"
+
+	// ETCD V3 backend
+	ETCD_V3 = "etcdv3"
+
 	// ZK backend
 	ZK = "zk"
 )
@@ -57,7 +61,7 @@ type ClientTLSConfig struct {
 // backend for kvstore
 type Store interface {
 	// Put a value at the specified key
-	Put(key string, value []byte, options *WriteOptions) error
+	Put(key, value string, options *WriteOptions) error
 
 	// Get a value given its key
 	Get(key string) (*KVPair, error)
@@ -69,16 +73,16 @@ type Store interface {
 	Exists(key string) (bool, error)
 
 	// Watch for changes on a key
-	Watch(key string, stopCh <-chan struct{}) (<-chan *KVPair, error)
+	Watch(key string, stopCh <-chan struct{}) (<-chan *WatchResponse, error)
 
 	// WatchTree watches for changes on child nodes under
 	// a given directory
-	WatchTree(directory string, stopCh <-chan struct{}) (<-chan []*KVPair, error)
+	WatchTree(directory string, stopCh <-chan struct{}) (<-chan *WatchResponse, error)
 
 	// NewLock creates a lock for a given key.
 	// The returned Locker is not held and must be acquired
 	// with `.Lock`. The Value is optional.
-	NewLock(key string, options *LockOptions) (Locker, error)
+	NewLock(key string, options *LockOptions) Locker
 
 	// List the content of a given prefix
 	List(directory string) ([]*KVPair, error)
@@ -88,38 +92,62 @@ type Store interface {
 
 	// Atomic CAS operation on a single value.
 	// Pass previous = nil to create a new key.
-	AtomicPut(key string, value []byte, previous *KVPair, options *WriteOptions) (bool, *KVPair, error)
+	AtomicPut(key, value string, previous *KVPair, options *WriteOptions) error
 
 	// Atomic delete of a single value
-	AtomicDelete(key string, previous *KVPair) (bool, error)
+	AtomicDelete(key string, previous *KVPair) error
 
 	// Close the store connection
 	Close()
 }
 
-// KVPair represents {Key, Value, Lastindex} tuple
+// KVPair represents {Key, Value} tuple
 type KVPair struct {
-	Key       string
-	Value     []byte
-	LastIndex uint64
+	Key   string
+	Value string
 }
 
-// WriteOptions contains optional request parameters
-type WriteOptions struct {
-	IsDir bool
-	TTL   time.Duration
+func NewKVPair(key, value string) *KVPair {
+	return &KVPair{
+		Key:   key,
+		Value: value,
+	}
 }
 
 // LockOptions contains optional request parameters
 type LockOptions struct {
-	Value     []byte        // Optional, value to associate with the lock
+	Value     string        // Optional, value to associate with the lock
 	TTL       time.Duration // Optional, expiration ttl associated with the lock
 	RenewLock chan struct{} // Optional, chan used to control and stop the session ttl renewal for the lock
+}
+
+const (
+	ACTION_PUT    = "PUT"
+	ACTION_DELETE = "DELETE"
+)
+
+type WatchResponse struct {
+	Action  string
+	PreNode *KVPair
+	Node    *KVPair
+}
+
+func NewWatchResponse(action string, preNode, node *KVPair) *WatchResponse {
+	return &WatchResponse{
+		Action:  action,
+		PreNode: preNode,
+		Node:    node,
+	}
+}
+
+// WriteOptions contains optional request parameters
+type WriteOptions struct {
+	TTL time.Duration
 }
 
 // Locker provides locking mechanism on top of the store.
 // Similar to `sync.Lock` except it may return errors.
 type Locker interface {
-	Lock(stopChan chan struct{}) (<-chan struct{}, error)
-	Unlock() error
+	Lock()
+	Unlock()
 }
