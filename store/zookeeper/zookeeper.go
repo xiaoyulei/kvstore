@@ -375,7 +375,7 @@ func (s *Zookeeper) AtomicDelete(key string, previous *store.KVPair) (bool, erro
 
 // NewLock returns a handle to a lock struct which can
 // be used to provide mutual exclusion on a key
-func (s *Zookeeper) NewLock(key string, options *store.LockOptions) (lock store.Locker, err error) {
+func (s *Zookeeper) NewLock(key string, options *store.LockOptions) (lock store.Locker) {
 	value := []byte("")
 
 	// Apply options
@@ -392,7 +392,7 @@ func (s *Zookeeper) NewLock(key string, options *store.LockOptions) (lock store.
 		lock:   zk.NewLock(s.client, s.normalize(key), zk.WorldACL(zk.PermAll)),
 	}
 
-	return lock, err
+	return lock
 }
 
 // Lock attempts to acquire the lock and blocks while

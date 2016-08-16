@@ -1,4 +1,4 @@
-package etcd
+package etcdv3
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	client = "localhost:4001"
+	client = "localhost:2379"
 )
 
 func makeEtcdClient(t *testing.T) store.Store {
@@ -34,7 +34,7 @@ func makeEtcdClient(t *testing.T) store.Store {
 func TestRegister(t *testing.T) {
 	Register()
 
-	kv, err := kvstore.NewStore(store.ETCD, []string{client}, nil)
+	kv, err := kvstore.NewStore(store.ETCD_V3, []string{client}, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, kv)
 
