@@ -1,1 +1,1 @@
-kvstore is base on libkv, but support etcd client V3. This project's goal is to support etcd v2, v3 and zookeeper, make application easy to switch kv store.
+kvstore is base on libkv, but libkv not very active. I try to use libkv, but not good for me. So I write this. This project's goal is to support etcd v2, v3 and zookeeper, make application easy to switch kv store.
