@@ -21,6 +21,16 @@ var (
 	// by sending a signal to the stop chan, this is used to verify if the
 	// operation succeeded
 	ErrAbortTryLock = errors.New("lock operation aborted")
+
+	actionMap = map[string]string{
+		"create":           store.ACTION_PUT,
+		"set":              store.ACTION_PUT,
+		"update":           store.ACTION_PUT,
+		"delete":           store.ACTION_DELETE,
+		"compareAndSwap":   store.ACTION_PUT,
+		"compareAndDelete": store.ACTION_DELETE,
+		"expire":           store.ACTION_DELETE,
+	}
 )
 
 // Etcd is the receiver type for the
@@ -165,16 +175,15 @@ func (s *Etcd) Get(key string) (pair *store.KVPair, err error) {
 	}
 
 	pair = &store.KVPair{
-		Key:       key,
-		Value:     []byte(result.Node.Value),
-		LastIndex: result.Node.ModifiedIndex,
+		Key:   key,
+		Value: result.Node.Value,
 	}
 
 	return pair, nil
 }
 
 // Put a value at "key"
-func (s *Etcd) Put(key string, value []byte, opts *store.WriteOptions) error {
+func (s *Etcd) Put(key, value string, opts *store.WriteOptions) error {
 	setOpts := &etcd.SetOptions{}
 
 	// Set options
@@ -212,29 +221,36 @@ func (s *Etcd) Exists(key string) (bool, error) {
 	return true, nil
 }
 
-// Watch for changes on a "key"
-// It returns a channel that will receive changes or pass
-// on errors. Upon creation, the current value will first
-// be sent to the channel. Providing a non-nil stopCh can
-// be used to stop watching.
-func (s *Etcd) Watch(key string, stopCh <-chan struct{}) (<-chan *store.KVPair, error) {
-	opts := &etcd.WatcherOptions{Recursive: false}
+func (s *Etcd) makeWatchResponse(r *etcd.Response) *store.WatchResponse {
+	var resp store.WatchResponse
+	resp.Action = actionMap[r.Action]
+
+	if r.PrevNode != nil {
+		resp.PreNode = &store.KVPair{
+			Key:   r.PrevNode.Key,
+			Value: r.PrevNode.Value,
+		}
+	}
+
+	if r.Node != nil {
+		resp.Node = &store.KVPair{
+			Key:   r.Node.Key,
+			Value: r.Node.Value,
+		}
+	}
+
+	return &resp
+}
+
+func (s *Etcd) watch(key string, stopCh <-chan struct{}, recursive bool) (<-chan *store.WatchResponse, error) {
+	opts := &etcd.WatcherOptions{Recursive: recursive}
 	watcher := s.client.Watcher(s.normalize(key), opts)
 
 	// watchCh is sending back events to the caller
-	watchCh := make(chan *store.KVPair)
+	resp := make(chan *store.WatchResponse)
 
 	go func() {
-		defer close(watchCh)
-
-		// Get the current value
-		pair, err := s.Get(key)
-		if err != nil {
-			return
-		}
-
-		// Push the current value through the channel.
-		watchCh <- pair
+		defer close(resp)
 
 		for {
 			// Check if the watch was stopped by the caller
@@ -245,20 +261,24 @@ func (s *Etcd) Watch(key string, stopCh <-chan struct{}) (<-chan *store.KVPair, 
 			}
 
 			result, err := watcher.Next(context.Background())
-
 			if err != nil {
-				return
+				log.Fatalf("watcher next fail. %v", err)
 			}
 
-			watchCh <- &store.KVPair{
-				Key:       key,
-				Value:     []byte(result.Node.Value),
-				LastIndex: result.Node.ModifiedIndex,
-			}
+			resp <- s.makeWatchResponse(result)
 		}
 	}()
 
-	return watchCh, nil
+	return resp, nil
+}
+
+// Watch for changes on a "key"
+// It returns a channel that will receive changes or pass
+// on errors. Upon creation, the current value will first
+// be sent to the channel. Providing a non-nil stopCh can
+// be used to stop watching.
+func (s *Etcd) Watch(key string, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
+	return s.watch(key, stopCh, false)
 }
 
 // WatchTree watches for changes on a "directory"
@@ -266,67 +286,19 @@ func (s *Etcd) Watch(key string, stopCh <-chan struct{}) (<-chan *store.KVPair, 
 // on errors. Upon creating a watch, the current childs values
 // will be sent to the channel. Providing a non-nil stopCh can
 // be used to stop watching.
-func (s *Etcd) WatchTree(directory string, stopCh <-chan struct{}) (<-chan []*store.KVPair, error) {
-	watchOpts := &etcd.WatcherOptions{Recursive: true}
-	watcher := s.client.Watcher(s.normalize(directory), watchOpts)
-
-	// watchCh is sending back events to the caller
-	watchCh := make(chan []*store.KVPair)
-
-	go func() {
-		defer close(watchCh)
-
-		// Get child values
-		list, err := s.List(directory)
-		if err != nil {
-			return
-		}
-
-		// Push the current value through the channel.
-		watchCh <- list
-
-		for {
-			// Check if the watch was stopped by the caller
-			select {
-			case <-stopCh:
-				return
-			default:
-			}
-
-			_, err := watcher.Next(context.Background())
-
-			if err != nil {
-				return
-			}
-
-			list, err = s.List(directory)
-			if err != nil {
-				return
-			}
-
-			watchCh <- list
-		}
-	}()
-
-	return watchCh, nil
+func (s *Etcd) WatchTree(directory string, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
+	return s.watch(directory, stopCh, true)
 }
 
 // AtomicPut puts a value at "key" if the key has not been
 // modified in the meantime, throws an error if this is the case
-func (s *Etcd) AtomicPut(key string, value []byte, previous *store.KVPair, opts *store.WriteOptions) (bool, *store.KVPair, error) {
-	var (
-		meta *etcd.Response
-		err  error
-	)
-
+func (s *Etcd) AtomicPut(key, value string, previous *store.KVPair, opts *store.WriteOptions) error {
+	var err error
 	setOpts := &etcd.SetOptions{}
 
 	if previous != nil {
 		setOpts.PrevExist = etcd.PrevExist
-		setOpts.PrevIndex = previous.LastIndex
-		if previous.Value != nil {
-			setOpts.PrevValue = string(previous.Value)
-		}
+		setOpts.PrevValue = previous.Value
 	} else {
 		setOpts.PrevExist = etcd.PrevNoExist
 	}
@@ -337,45 +309,36 @@ func (s *Etcd) AtomicPut(key string, value []byte, previous *store.KVPair, opts 
 		}
 	}
 
-	meta, err = s.client.Set(context.Background(), s.normalize(key), string(value), setOpts)
+	_, err = s.client.Set(context.Background(), s.normalize(key), string(value), setOpts)
 	if err != nil {
 		if etcdError, ok := err.(etcd.Error); ok {
 			// Compare failed
 			if etcdError.Code == etcd.ErrorCodeTestFailed {
-				return false, nil, store.ErrKeyModified
+				return store.ErrKeyModified
 			}
 			// Node exists error (when PrevNoExist)
 			if etcdError.Code == etcd.ErrorCodeNodeExist {
-				return false, nil, store.ErrKeyExists
+				return store.ErrKeyExists
 			}
 		}
-		return false, nil, err
+		return err
 	}
 
-	updated := &store.KVPair{
-		Key:       key,
-		Value:     value,
-		LastIndex: meta.Node.ModifiedIndex,
-	}
-
-	return true, updated, nil
+	return nil
 }
 
 // AtomicDelete deletes a value at "key" if the key
 // has not been modified in the meantime, throws an
 // error if this is the case
-func (s *Etcd) AtomicDelete(key string, previous *store.KVPair) (bool, error) {
+func (s *Etcd) AtomicDelete(key string, previous *store.KVPair) error {
 	if previous == nil {
-		return false, store.ErrPreviousNotSpecified
+		return store.ErrPreviousNotSpecified
 	}
 
 	delOpts := &etcd.DeleteOptions{}
 
 	if previous != nil {
-		delOpts.PrevIndex = previous.LastIndex
-		if previous.Value != nil {
-			delOpts.PrevValue = string(previous.Value)
-		}
+		delOpts.PrevValue = previous.Value
 	}
 
 	_, err := s.client.Delete(context.Background(), s.normalize(key), delOpts)
@@ -383,17 +346,17 @@ func (s *Etcd) AtomicDelete(key string, previous *store.KVPair) (bool, error) {
 		if etcdError, ok := err.(etcd.Error); ok {
 			// Key Not Found
 			if etcdError.Code == etcd.ErrorCodeKeyNotFound {
-				return false, store.ErrKeyNotFound
+				return store.ErrKeyNotFound
 			}
 			// Compare failed
 			if etcdError.Code == etcd.ErrorCodeTestFailed {
-				return false, store.ErrKeyModified
+				return store.ErrKeyModified
 			}
 		}
-		return false, err
+		return err
 	}
 
-	return true, nil
+	return nil
 }
 
 // List child nodes of a given directory
@@ -415,9 +378,8 @@ func (s *Etcd) List(directory string) ([]*store.KVPair, error) {
 	kv := []*store.KVPair{}
 	for _, n := range resp.Node.Nodes {
 		kv = append(kv, &store.KVPair{
-			Key:       n.Key,
-			Value:     []byte(n.Value),
-			LastIndex: n.ModifiedIndex,
+			Key:   n.Key,
+			Value: n.Value,
 		})
 	}
 	return kv, nil
@@ -445,9 +407,7 @@ func (s *Etcd) NewLock(key string, options *store.LockOptions) (lock store.Locke
 
 	// Apply options on Lock
 	if options != nil {
-		if options.Value != nil {
-			value = string(options.Value)
-		}
+		value = options.Value
 		if options.TTL != 0 {
 			ttl = options.TTL
 		}
@@ -471,8 +431,7 @@ func (s *Etcd) NewLock(key string, options *store.LockOptions) (lock store.Locke
 // Lock attempts to acquire the lock and blocks while
 // doing so. It returns a channel that is closed if our
 // lock is lost or if an error occurs
-func (l *etcdLock) Lock(stopChan chan struct{}) (<-chan struct{}, error) {
-
+func (l *etcdLock) Lock() {
 	// Lock holder channel
 	lockHeld := make(chan struct{})
 	stopLocking := l.stopRenew
@@ -487,7 +446,7 @@ func (l *etcdLock) Lock(stopChan chan struct{}) (<-chan struct{}, error) {
 		if err != nil {
 			if etcdError, ok := err.(etcd.Error); ok {
 				if etcdError.Code != etcd.ErrorCodeNodeExist {
-					return nil, err
+					panic(err)
 				}
 				setOpts.PrevIndex = ^uint64(0)
 			}
@@ -507,7 +466,7 @@ func (l *etcdLock) Lock(stopChan chan struct{}) (<-chan struct{}, error) {
 			// If this is a legitimate error, return
 			if etcdError, ok := err.(etcd.Error); ok {
 				if etcdError.Code != etcd.ErrorCodeTestFailed {
-					return nil, err
+					panic(err)
 				}
 			}
 
@@ -524,17 +483,13 @@ func (l *etcdLock) Lock(stopChan chan struct{}) (<-chan struct{}, error) {
 			case <-free:
 				break
 			case err := <-errorCh:
-				return nil, err
-			case <-stopChan:
-				return nil, ErrAbortTryLock
+				panic(err)
 			}
 
 			// Delete or Expire event occurred
 			// Retry
 		}
 	}
-
-	return lockHeld, nil
 }
 
 // Hold the lock as long as we can
@@ -584,7 +539,7 @@ func (l *etcdLock) waitLock(key string, errorCh chan error, stopWatchCh chan boo
 
 // Unlock the "key". Calling unlock while
 // not holding the lock will throw an error
-func (l *etcdLock) Unlock() error {
+func (l *etcdLock) Unlock() {
 	if l.stopLock != nil {
 		l.stopLock <- struct{}{}
 	}
@@ -594,10 +549,9 @@ func (l *etcdLock) Unlock() error {
 		}
 		_, err := l.client.Delete(context.Background(), l.key, delOpts)
 		if err != nil {
-			return err
+			panic(err)
 		}
 	}
-	return nil
 }
 
 // Close closes the client connection

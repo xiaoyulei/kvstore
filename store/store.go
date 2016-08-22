@@ -142,7 +142,8 @@ func NewWatchResponse(action string, preNode, node *KVPair) *WatchResponse {
 
 // WriteOptions contains optional request parameters
 type WriteOptions struct {
-	TTL time.Duration
+	IsDir bool // useless in etcdv3
+	TTL   time.Duration
 }
 
 // Locker provides locking mechanism on top of the store.
