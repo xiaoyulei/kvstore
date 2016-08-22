@@ -33,6 +33,10 @@ func RunTestWatch(t *testing.T, kv store.Store) {
 	testWatchTree(t, kv)
 }
 
+func RunTestLockV3(t *testing.T, kv store.Store) {
+	testLockUnlockV3(t, kv)
+}
+
 // RunTestLock tests the KV pair Lock/Unlock APIs supported
 // by the K/V backends.
 func RunTestLock(t *testing.T, kv store.Store) {
@@ -98,7 +102,7 @@ func testPutGetDeleteExists(t *testing.T, kv store.Store) {
 }
 
 func testWatch(t *testing.T, kv store.Store) {
-	key := "testWatch"
+	key := "/testWatch"
 	value := "world"
 	newValue := "world!"
 
@@ -108,7 +112,7 @@ func testWatch(t *testing.T, kv store.Store) {
 
 	stopCh := make(chan struct{})
 	defer func() {
-		stopCh <- struct{}{}
+		close(stopCh)
 	}()
 	events, err := kv.Watch(key, stopCh)
 	assert.NoError(t, err)
@@ -138,18 +142,18 @@ func testWatch(t *testing.T, kv store.Store) {
 		select {
 		case event := <-events:
 			assert.NotNil(t, event)
-			//assert.NotNil(t, event.PreNode)
+			assert.NotNil(t, event.PreNode)
 			assert.NotNil(t, event.Node)
 
 			if eventCount == 1 {
 				assert.Equal(t, event.Action, store.ACTION_PUT)
-				//assert.Equal(t, event.PreNode.Key, key)
-				//assert.Equal(t, event.PreNode.Value, value)
+				assert.Equal(t, event.PreNode.Key, key)
+				assert.Equal(t, event.PreNode.Value, value)
 				assert.Equal(t, event.Node.Key, key)
 				assert.Equal(t, event.Node.Value, newValue)
 			} else {
-				//assert.Equal(t, event.PreNode.Key, key)
-				//assert.Equal(t, event.PreNode.Value, newValue)
+				assert.Equal(t, event.PreNode.Key, key)
+				assert.Equal(t, event.PreNode.Value, newValue)
 				assert.Equal(t, event.Node.Key, key)
 				assert.Equal(t, event.Node.Value, newValue)
 			}
@@ -160,7 +164,6 @@ func testWatch(t *testing.T, kv store.Store) {
 				return
 			}
 		case <-time.After(4 * time.Second):
-			t.Fatal("Timeout reached")
 			return
 		}
 	}
@@ -309,6 +312,43 @@ func testAtomicDelete(t *testing.T, kv store.Store) {
 }
 
 func testLockUnlock(t *testing.T, kv store.Store) {
+	key := "testLockUnlock"
+	value := "bar"
+
+	// We should be able to create a new lock on key
+	lock := kv.NewLock(key, &store.LockOptions{Value: value, TTL: 2 * time.Second})
+	assert.NotNil(t, lock)
+
+	// Lock should successfully succeed or block
+	lock.Lock()
+
+	// Get should work
+	pair, err := kv.Get(key)
+	assert.NoError(t, err)
+	if assert.NotNil(t, pair) {
+		assert.NotNil(t, pair.Value)
+	}
+	assert.Equal(t, pair.Value, value)
+
+	// Unlock should succeed
+	lock.Unlock()
+
+	// Lock should succeed again
+	lock.Lock()
+
+	// Get should work
+	pair, err = kv.Get(key)
+	assert.NoError(t, err)
+	if assert.NotNil(t, pair) {
+		assert.NotNil(t, pair.Value)
+	}
+	assert.Equal(t, pair.Value, value)
+
+	lock.Unlock()
+	assert.NoError(t, err)
+}
+
+func testLockUnlockV3(t *testing.T, kv store.Store) {
 	key := "testLockUnlock"
 
 	// We should be able to create a new lock on key
