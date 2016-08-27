@@ -74,13 +74,12 @@ func (s *Etcd) Get(key string) (pair *store.KVPair, err error) {
 
 func (s *Etcd) get(key string, prefix bool) (pairs []*store.KVPair, err error) {
 	var resp *etcd.GetResponse
-
+	var opts []etcd.OpOption
 	if prefix {
-		resp, err = s.client.Get(s.client.Ctx(), s.normalize(key), etcd.WithPrefix())
-	} else {
-		resp, err = s.client.Get(s.client.Ctx(), s.normalize(key))
+		opts = []etcd.OpOption{etcd.WithPrefix()}
 	}
 
+	resp, err = s.client.Get(s.client.Ctx(), s.normalize(key), opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -153,57 +152,63 @@ func (s *Etcd) WatchTree(directory string, stopCh <-chan struct{}) (<-chan *stor
 
 func (s *Etcd) watch(key string, prefix bool, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
 	var watchChan etcd.WatchChan
+	opts := []etcd.OpOption{etcd.WithPrevKV()}
 	if prefix {
-		watchChan = s.client.Watch(s.client.Ctx(), s.normalize(key), etcd.WithPrefix(), etcd.WithPrevKV())
-	} else {
-		watchChan = s.client.Watch(s.client.Ctx(), s.normalize(key), etcd.WithPrevKV())
+		opts = append(opts, etcd.WithPrefix())
 	}
+	watchChan = s.client.Watch(s.client.Ctx(), s.normalize(key), opts...)
 
 	// resp is sending back events to the caller
 	resp := make(chan *store.WatchResponse)
-	go s.watchMonitor(watchChan, resp, stopCh)
-	return resp, nil
-}
+	go func() {
+		defer close(resp)
+		for {
+			select {
+			case <-stopCh:
+				return
 
-func (s *Etcd) watchMonitor(watchChan etcd.WatchChan, resp chan *store.WatchResponse, stopCh <-chan struct{}) {
-	defer close(resp)
-	for {
-		select {
-		case <-stopCh:
-			return
-
-		case ch := <-watchChan:
-			for _, event := range ch.Events {
-				if event.Type == mvccpb.PUT {
-					var preNode *store.KVPair
-					if event.PrevKv != nil {
-						preNode = &store.KVPair{
-							Key:   string(event.Kv.Key),
-							Value: string(event.Kv.Value),
-						}
-					}
-					resp <- &store.WatchResponse{
-						Action:  store.ACTION_PUT,
-						PreNode: preNode,
-						Node: &store.KVPair{
-							Key:   string(event.Kv.Key),
-							Value: string(event.Kv.Value),
-						},
-					}
-				} else if event.Type == mvccpb.DELETE {
-					resp <- &store.WatchResponse{
-						Action: store.ACTION_DELETE,
-						PreNode: &store.KVPair{
-							Key:   string(event.Kv.Key),
-							Value: string(event.Kv.Value),
-						},
-						Node: nil,
-					}
-				} else {
-					log.Fatalf("Unexpected event type %v\n", event.Type)
+			case ch := <-watchChan:
+				for _, event := range ch.Events {
+					resp <- s.makeWatchResponse(event)
 				}
 			}
 		}
+	}()
+
+	return resp, nil
+}
+
+func (s *Etcd) makeWatchResponse(event *etcd.Event) *store.WatchResponse {
+	switch event.Type {
+	case mvccpb.PUT:
+		var preNode *store.KVPair
+		if event.PrevKv != nil {
+			preNode = &store.KVPair{
+				Key:   string(event.Kv.Key),
+				Value: string(event.Kv.Value),
+			}
+		}
+		return &store.WatchResponse{
+			Action:  store.ACTION_PUT,
+			PreNode: preNode,
+			Node: &store.KVPair{
+				Key:   string(event.Kv.Key),
+				Value: string(event.Kv.Value),
+			},
+		}
+
+	case mvccpb.DELETE:
+		return &store.WatchResponse{
+			Action: store.ACTION_DELETE,
+			PreNode: &store.KVPair{
+				Key:   string(event.Kv.Key),
+				Value: string(event.Kv.Value),
+			},
+			Node: nil,
+		}
+	default:
+		log.Fatalf("Unexpected event type %v\n", event.Type)
+		return nil
 	}
 }
 
