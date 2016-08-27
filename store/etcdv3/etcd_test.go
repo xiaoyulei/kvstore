@@ -51,7 +51,7 @@ func TestEtcdStore(t *testing.T) {
 	testutils.RunTestCommon(t, kv)
 	testutils.RunTestAtomic(t, kv)
 	testutils.RunTestWatch(t, kv)
-	testutils.RunTestLock(t, kv)
+	testutils.RunTestLockV3(t, kv)
 	testutils.RunTestLockTTL(t, kv, lockKV)
 	testutils.RunTestTTL(t, kv, ttlKV)
 	testutils.RunCleanup(t, kv)
