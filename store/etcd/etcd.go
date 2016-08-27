@@ -11,9 +11,9 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/YuleiXiao/kvstore"
+	"github.com/YuleiXiao/kvstore/store"
 	etcd "github.com/coreos/etcd/client"
-	"github.com/kvstore"
-	"github.com/kvstore/store"
 )
 
 var (

@@ -4,11 +4,11 @@ import (
 	"log"
 	"strings"
 
+	"github.com/YuleiXiao/kvstore"
+	"github.com/YuleiXiao/kvstore/store"
 	etcd "github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/concurrency"
 	mvccpb "github.com/coreos/etcd/mvcc/mvccpb"
-	"github.com/kvstore"
-	"github.com/kvstore/store"
 )
 
 // Etcd is the receiver type for the
