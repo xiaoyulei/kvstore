@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kvstore"
-	"github.com/kvstore/store"
-	"github.com/kvstore/testutils"
+	"github.com/YuleiXiao/kvstore"
+	"github.com/YuleiXiao/kvstore/store"
+	"github.com/YuleiXiao/kvstore/testutils"
 	"github.com/stretchr/testify/assert"
 )
 

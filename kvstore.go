@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kvstore/store"
+	"github.com/YuleiXiao/kvstore/store"
 )
 
 // Initialize creates a new Store object, initializing the client
