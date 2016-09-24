@@ -462,7 +462,7 @@ func (l *etcdLock) Lock() {
 		if err != nil {
 			if etcdError, ok := err.(etcd.Error); ok {
 				if etcdError.Code != etcd.ErrorCodeNodeExist {
-					panic(err)
+					log.Fatal(err)
 				}
 				setOpts.PrevIndex = ^uint64(0)
 			}
@@ -481,7 +481,7 @@ func (l *etcdLock) Lock() {
 			// If this is a legitimate error, return
 			if etcdError, ok := err.(etcd.Error); ok {
 				if etcdError.Code != etcd.ErrorCodeTestFailed {
-					panic(err)
+					log.Fatal(err)
 				}
 			}
 
@@ -498,7 +498,7 @@ func (l *etcdLock) Lock() {
 			case <-free:
 				break
 			case err := <-errorCh:
-				panic(err)
+				log.Fatal(err)
 			}
 
 			// Delete or Expire event occurred
@@ -564,7 +564,7 @@ func (l *etcdLock) Unlock() {
 		}
 		_, err := l.client.Delete(context.Background(), l.key, delOpts)
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 	}
 }

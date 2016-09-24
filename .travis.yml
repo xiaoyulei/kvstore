@@ -8,18 +8,19 @@ sudo: false
 
 before_script:
 #  - ci/travis_etcd.sh 3.0.12
-#  - ci/travis_zk.sh 3.5.1-alpha
+  - ci/travis_zk.sh 3.5.1-alpha
 
 install:
   - go get -t -d ./...
   - go get github.com/golang/lint/golint
   - go get github.com/mattn/goveralls
   - go get github.com/GeertJohan/fgt
-  - cd $GOPATH/src/google.golang.org/grpc;git checkout v1.0.2;cd -
+  - cd $GOPATH/src/google.golang.org/grpc;git checkout v1.0.4;cd -
 
 script:
   - $GOPATH/src/github.com/coreos/etcd/build
   - $GOPATH/src/github.com/coreos/etcd/bin/etcd --listen-client-urls 'http://0.0.0.0:2379' --advertise-client-urls 'http://127.0.0.1:2379' >/dev/null 2>&1 &
+  - ./zk/bin/zkServer.sh start ./zk/conf/zoo.cfg 1> /dev/null
   - sleep 5
   - echo very-secure|ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=[localhost:2379] user add --interactive=false test
   - echo root|ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=[localhost:2379] user add --interactive=false root
@@ -27,7 +28,6 @@ script:
   - ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=[localhost:2379] user grant-role root root
   - ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=[localhost:2379] user grant-role test root
   - ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=[localhost:2379] auth enable
-#  - ./zk/bin/zkServer.sh start ./zk/conf/zoo.cfg 1> /dev/null
   - ci/validate-gofmt
   - go vet ./...
   - fgt golint ./...

@@ -36,6 +36,8 @@ var (
 	ErrPreviousNotSpecified = errors.New("Previous K/V pair should be provided for the Atomic operation")
 	// ErrKeyExists is thrown when the previous value exists in the case of an AtomicPut
 	ErrKeyExists = errors.New("Previous K/V pair exists, cannot complete Atomic operation")
+	// ErrWatchFail is thrown when the watch fail or response channel closed
+	ErrWatchFail = errors.New("Some error occurred when watch or response channel was closed")
 )
 
 // Config contains the options for a storage client
