@@ -175,8 +175,9 @@ func (s *Etcd) Get(key string) (pair *store.KVPair, err error) {
 	}
 
 	pair = &store.KVPair{
-		Key:   key,
-		Value: result.Node.Value,
+		Key:       key,
+		Value:     result.Node.Value,
+		LastIndex: result.Node.ModifiedIndex,
 	}
 
 	return pair, nil
@@ -227,15 +228,17 @@ func (s *Etcd) makeWatchResponse(r *etcd.Response) *store.WatchResponse {
 
 	if r.PrevNode != nil {
 		resp.PreNode = &store.KVPair{
-			Key:   r.PrevNode.Key,
-			Value: r.PrevNode.Value,
+			Key:       r.PrevNode.Key,
+			Value:     r.PrevNode.Value,
+			LastIndex: r.PrevNode.ModifiedIndex,
 		}
 	}
 
 	if r.Node != nil {
 		resp.Node = &store.KVPair{
-			Key:   r.Node.Key,
-			Value: r.Node.Value,
+			Key:       r.Node.Key,
+			Value:     r.Node.Value,
+			LastIndex: r.Node.ModifiedIndex,
 		}
 	}
 
@@ -248,7 +251,6 @@ func (s *Etcd) watch(key string, stopCh <-chan struct{}, recursive bool) (<-chan
 
 	// watchCh is sending back events to the caller
 	resp := make(chan *store.WatchResponse)
-
 	go func() {
 		defer close(resp)
 
@@ -299,6 +301,7 @@ func (s *Etcd) AtomicPut(key, value string, previous *store.KVPair, opts *store.
 	if previous != nil {
 		setOpts.PrevExist = etcd.PrevExist
 		setOpts.PrevValue = previous.Value
+		setOpts.PrevIndex = previous.LastIndex
 	} else {
 		setOpts.PrevExist = etcd.PrevNoExist
 	}
@@ -339,6 +342,7 @@ func (s *Etcd) AtomicDelete(key string, previous *store.KVPair) error {
 
 	if previous != nil {
 		delOpts.PrevValue = previous.Value
+		delOpts.PrevIndex = previous.LastIndex
 	}
 
 	_, err := s.client.Delete(context.Background(), s.normalize(key), delOpts)
@@ -378,8 +382,9 @@ func (s *Etcd) List(directory string) ([]*store.KVPair, error) {
 	kv := []*store.KVPair{}
 	for _, n := range resp.Node.Nodes {
 		kv = append(kv, &store.KVPair{
-			Key:   n.Key,
-			Value: n.Value,
+			Key:       n.Key,
+			Value:     n.Value,
+			LastIndex: n.ModifiedIndex,
 		})
 	}
 	return kv, nil
