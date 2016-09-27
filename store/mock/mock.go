@@ -1,7 +1,7 @@
 package mock
 
 import (
-	"github.com/YuleiXiao/kvstore"
+	"github.com/YuleiXiao/kvstore/store"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -25,7 +25,7 @@ func New(endpoints []string, options *store.Config) (store.Store, error) {
 }
 
 // Put mock
-func (s *Mock) Put(key string, value []byte, opts *store.WriteOptions) error {
+func (s *Mock) Put(key, value string, opts *store.WriteOptions) error {
 	args := s.Mock.Called(key, value, opts)
 	return args.Error(0)
 }
@@ -49,21 +49,21 @@ func (s *Mock) Exists(key string) (bool, error) {
 }
 
 // Watch mock
-func (s *Mock) Watch(key string, stopCh <-chan struct{}) (<-chan *store.KVPair, error) {
+func (s *Mock) Watch(key string, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
 	args := s.Mock.Called(key, stopCh)
-	return args.Get(0).(<-chan *store.KVPair), args.Error(1)
+	return args.Get(0).(<-chan *store.WatchResponse), args.Error(1)
 }
 
 // WatchTree mock
-func (s *Mock) WatchTree(prefix string, stopCh <-chan struct{}) (<-chan []*store.KVPair, error) {
+func (s *Mock) WatchTree(prefix string, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
 	args := s.Mock.Called(prefix, stopCh)
-	return args.Get(0).(chan []*store.KVPair), args.Error(1)
+	return args.Get(0).(chan *store.WatchResponse), args.Error(1)
 }
 
 // NewLock mock
-func (s *Mock) NewLock(key string, options *store.LockOptions) (store.Locker, error) {
+func (s *Mock) NewLock(key string, options *store.LockOptions) store.Locker {
 	args := s.Mock.Called(key, options)
-	return args.Get(0).(store.Locker), args.Error(1)
+	return args.Get(0).(store.Locker)
 }
 
 // List mock
@@ -79,15 +79,15 @@ func (s *Mock) DeleteTree(prefix string) error {
 }
 
 // AtomicPut mock
-func (s *Mock) AtomicPut(key string, value []byte, previous *store.KVPair, opts *store.WriteOptions) (bool, *store.KVPair, error) {
+func (s *Mock) AtomicPut(key, value string, previous *store.KVPair, opts *store.WriteOptions) error {
 	args := s.Mock.Called(key, value, previous, opts)
-	return args.Bool(0), args.Get(1).(*store.KVPair), args.Error(2)
+	return args.Error(2)
 }
 
 // AtomicDelete mock
-func (s *Mock) AtomicDelete(key string, previous *store.KVPair) (bool, error) {
+func (s *Mock) AtomicDelete(key string, previous *store.KVPair) error {
 	args := s.Mock.Called(key, previous)
-	return args.Bool(0), args.Error(1)
+	return args.Error(1)
 }
 
 // Lock mock implementation of Locker

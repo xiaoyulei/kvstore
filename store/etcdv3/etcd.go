@@ -91,8 +91,9 @@ func (s *Etcd) get(key string, prefix bool) (pairs []*store.KVPair, err error) {
 	pairs = []*store.KVPair{}
 	for _, kv := range resp.Kvs {
 		pairs = append(pairs, &store.KVPair{
-			Key:   string(kv.Key),
-			Value: string(kv.Value),
+			Key:       string(kv.Key),
+			Value:     string(kv.Value),
+			LastIndex: uint64(kv.ModRevision),
 		})
 	}
 
@@ -168,9 +169,7 @@ func (s *Etcd) watch(key string, prefix bool, stopCh <-chan struct{}) (<-chan *s
 				return
 
 			case ch := <-watchChan:
-				for _, event := range ch.Events {
-					resp <- s.makeWatchResponse(event)
-				}
+				resp <- s.makeWatchResponse(ch)
 			}
 		}
 	}()
@@ -178,38 +177,44 @@ func (s *Etcd) watch(key string, prefix bool, stopCh <-chan struct{}) (<-chan *s
 	return resp, nil
 }
 
-func (s *Etcd) makeWatchResponse(event *etcd.Event) *store.WatchResponse {
-	switch event.Type {
-	case mvccpb.PUT:
-		var preNode *store.KVPair
-		if event.PrevKv != nil {
-			preNode = &store.KVPair{
-				Key:   string(event.Kv.Key),
-				Value: string(event.Kv.Value),
+func (s *Etcd) makeWatchResponse(resp etcd.WatchResponse) *store.WatchResponse {
+	for _, event := range resp.Events {
+		switch event.Type {
+		case mvccpb.PUT:
+			var preNode *store.KVPair
+			if event.PrevKv != nil {
+				preNode = &store.KVPair{
+					Key:       string(event.Kv.Key),
+					Value:     string(event.Kv.Value),
+					LastIndex: uint64(event.Kv.ModRevision),
+				}
 			}
-		}
-		return &store.WatchResponse{
-			Action:  store.ACTION_PUT,
-			PreNode: preNode,
-			Node: &store.KVPair{
-				Key:   string(event.Kv.Key),
-				Value: string(event.Kv.Value),
-			},
-		}
+			return &store.WatchResponse{
+				Action:  store.ACTION_PUT,
+				PreNode: preNode,
+				Node: &store.KVPair{
+					Key:       string(event.Kv.Key),
+					Value:     string(event.Kv.Value),
+					LastIndex: uint64(event.Kv.ModRevision),
+				},
+			}
 
-	case mvccpb.DELETE:
-		return &store.WatchResponse{
-			Action: store.ACTION_DELETE,
-			PreNode: &store.KVPair{
-				Key:   string(event.Kv.Key),
-				Value: string(event.Kv.Value),
-			},
-			Node: nil,
+		case mvccpb.DELETE:
+			return &store.WatchResponse{
+				Action: store.ACTION_DELETE,
+				PreNode: &store.KVPair{
+					Key:       string(event.Kv.Key),
+					Value:     string(event.Kv.Value),
+					LastIndex: uint64(event.Kv.ModRevision),
+				},
+				Node: nil,
+			}
+		default:
+			log.Fatalf("Unexpected event type %v\n", event.Type)
+			return nil
 		}
-	default:
-		log.Fatalf("Unexpected event type %v\n", event.Type)
-		return nil
 	}
+	return nil
 }
 
 // AtomicPut puts a value at "key" if the key has not been
@@ -225,15 +230,18 @@ func (s *Etcd) AtomicPut(key, value string, previous *store.KVPair, opts *store.
 		req = etcd.OpPut(key, value, etcd.WithLease(leaseResp.ID))
 	}
 
-	var cmp etcd.Cmp
+	cmp := []etcd.Cmp{}
 	if previous == nil {
-		cmp = etcd.Compare(etcd.CreateRevision(key), "=", 0)
+		cmp = append(cmp, etcd.Compare(etcd.CreateRevision(key), "=", 0))
 	} else {
-		cmp = etcd.Compare(etcd.Value(key), "=", previous.Value)
+		cmp = append(cmp, etcd.Compare(etcd.Value(key), "=", previous.Value))
+		if previous.LastIndex != 0 {
+			cmp = append(cmp, etcd.Compare(etcd.ModRevision(key), "=", int64(previous.LastIndex)))
+		}
 	}
 
 	txn := s.client.Txn(s.client.Ctx())
-	resp, err := txn.If(cmp).Then(req).Commit()
+	resp, err := txn.If(cmp...).Then(req).Commit()
 	if err != nil {
 		return err
 	}
@@ -257,10 +265,13 @@ func (s *Etcd) AtomicDelete(key string, previous *store.KVPair) error {
 		return store.ErrPreviousNotSpecified
 	}
 
+	cmp := []etcd.Cmp{etcd.Compare(etcd.Value(key), "=", previous.Value)}
+	if previous.LastIndex != 0 {
+		cmp = append(cmp, etcd.Compare(etcd.ModRevision(key), "=", int64(previous.LastIndex)))
+	}
+
 	txn := s.client.Txn(s.client.Ctx())
-	resp, err := txn.If(
-		etcd.Compare(etcd.Value(key), "=", previous.Value),
-	).Then(
+	resp, err := txn.If(cmp...).Then(
 		etcd.OpDelete(key),
 	).Commit()
 
