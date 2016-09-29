@@ -73,16 +73,16 @@ type Store interface {
 	Exists(key string) (bool, error)
 
 	// Watch for changes on a key
-	Watch(key string, stopCh <-chan struct{}) (<-chan *WatchResponse, error)
+	Watch(key string, opt *WatchOptions, stopCh <-chan struct{}) (<-chan *WatchResponse, error)
 
 	// WatchTree watches for changes on child nodes under
 	// a given directory
-	WatchTree(directory string, stopCh <-chan struct{}) (<-chan *WatchResponse, error)
+	WatchTree(directory string, opt *WatchOptions, stopCh <-chan struct{}) (<-chan *WatchResponse, error)
 
 	// NewLock creates a lock for a given key.
 	// The returned Locker is not held and must be acquired
 	// with `.Lock`. The Value is optional.
-	NewLock(key string, options *LockOptions) Locker
+	NewLock(key string, opt *LockOptions) Locker
 
 	// List the content of a given prefix
 	List(directory string) ([]*KVPair, error)
@@ -138,6 +138,11 @@ func NewWatchResponse(action string, preNode, node *KVPair) *WatchResponse {
 type WriteOptions struct {
 	IsDir bool // useless in etcdv3
 	TTL   time.Duration
+}
+
+// WatchOptions contains optional request parameters
+type WatchOptions struct {
+	Index uint64
 }
 
 // Locker provides locking mechanism on top of the store.
