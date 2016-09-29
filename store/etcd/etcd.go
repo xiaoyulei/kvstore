@@ -245,8 +245,11 @@ func (s *Etcd) makeWatchResponse(r *etcd.Response) *store.WatchResponse {
 	return &resp
 }
 
-func (s *Etcd) watch(key string, stopCh <-chan struct{}, recursive bool) (<-chan *store.WatchResponse, error) {
+func (s *Etcd) watch(key string, opt *store.WatchOptions, recursive bool, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
 	opts := &etcd.WatcherOptions{Recursive: recursive}
+	if opt != nil {
+		opts.AfterIndex = opt.Index
+	}
 	watcher := s.client.Watcher(s.normalize(key), opts)
 
 	// watchCh is sending back events to the caller
@@ -279,8 +282,8 @@ func (s *Etcd) watch(key string, stopCh <-chan struct{}, recursive bool) (<-chan
 // on errors. Upon creation, the current value will first
 // be sent to the channel. Providing a non-nil stopCh can
 // be used to stop watching.
-func (s *Etcd) Watch(key string, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
-	return s.watch(key, stopCh, false)
+func (s *Etcd) Watch(key string, opt *store.WatchOptions, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
+	return s.watch(key, opt, false, stopCh)
 }
 
 // WatchTree watches for changes on a "directory"
@@ -288,8 +291,8 @@ func (s *Etcd) Watch(key string, stopCh <-chan struct{}) (<-chan *store.WatchRes
 // on errors. Upon creating a watch, the current childs values
 // will be sent to the channel. Providing a non-nil stopCh can
 // be used to stop watching.
-func (s *Etcd) WatchTree(directory string, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
-	return s.watch(directory, stopCh, true)
+func (s *Etcd) WatchTree(directory string, opt *store.WatchOptions, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
+	return s.watch(directory, opt, true, stopCh)
 }
 
 // AtomicPut puts a value at "key" if the key has not been

@@ -138,8 +138,8 @@ func (s *Etcd) Exists(key string) (bool, error) {
 // on errors. Upon creation, the current value will first
 // be sent to the channel. Providing a non-nil stopCh can
 // be used to stop watching.
-func (s *Etcd) Watch(key string, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
-	return s.watch(key, false, stopCh)
+func (s *Etcd) Watch(key string, opt *store.WatchOptions, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
+	return s.watch(key, false, opt, stopCh)
 }
 
 // WatchTree watches for changes on a "directory"
@@ -147,15 +147,18 @@ func (s *Etcd) Watch(key string, stopCh <-chan struct{}) (<-chan *store.WatchRes
 // on errors. Upon creating a watch, the current childs values
 // will be sent to the channel. Providing a non-nil stopCh can
 // be used to stop watching.
-func (s *Etcd) WatchTree(directory string, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
-	return s.watch(directory, true, stopCh)
+func (s *Etcd) WatchTree(directory string, opt *store.WatchOptions, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
+	return s.watch(directory, true, opt, stopCh)
 }
 
-func (s *Etcd) watch(key string, prefix bool, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
+func (s *Etcd) watch(key string, prefix bool, opt *store.WatchOptions, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
 	var watchChan etcd.WatchChan
 	opts := []etcd.OpOption{etcd.WithPrevKV()}
 	if prefix {
 		opts = append(opts, etcd.WithPrefix())
+	}
+	if opt != nil {
+		opts = append(opts, etcd.WithRev(int64(opt.Index)))
 	}
 	watchChan = s.client.Watch(s.client.Ctx(), s.normalize(key), opts...)
 
@@ -306,8 +309,14 @@ func (s *Etcd) DeleteTree(directory string) error {
 // The returned Locker is not held and must be acquired
 // with `.Lock`. The Value is optional.
 // Now LockOptions not work in etcd v3.
-func (s *Etcd) NewLock(key string, options *store.LockOptions) store.Locker {
-	return concurrency.NewLocker(s.client, key)
+func (s *Etcd) NewLock(key string, opt *store.LockOptions) store.Locker {
+	var session *concurrency.Session
+	if opt != nil {
+		session, _ = concurrency.NewSession(s.client, concurrency.WithTTL(int(opt.TTL)))
+	} else {
+		session, _ = concurrency.NewSession(s.client, nil)
+	}
+	return concurrency.NewLocker(session, key)
 }
 
 // Close closes the client connection
