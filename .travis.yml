@@ -8,11 +8,11 @@ sudo: false
 
 before_script:
   - ci/travis_etcd.sh 3.0.0
-  - ci/travis_zk.sh 3.5.1-alpha
+#  - ci/travis_zk.sh 3.5.1-alpha
 
 script:
   - ./etcd/etcd --listen-client-urls 'http://0.0.0.0:2379' --advertise-client-urls 'http://127.0.0.1:2379' >/dev/null 2>&1 &
-  - ./zk/bin/zkServer.sh start ./zk/conf/zoo.cfg 1> /dev/null
+#  - ./zk/bin/zkServer.sh start ./zk/conf/zoo.cfg 1> /dev/null
   - ci/validate-gofmt
   - go vet ./...
   - fgt golint ./...
