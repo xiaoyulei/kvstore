@@ -23,13 +23,13 @@ var (
 	ErrAbortTryLock = errors.New("lock operation aborted")
 
 	actionMap = map[string]string{
-		"create":           store.ACTION_PUT,
-		"set":              store.ACTION_PUT,
-		"update":           store.ACTION_PUT,
-		"delete":           store.ACTION_DELETE,
-		"compareAndSwap":   store.ACTION_PUT,
-		"compareAndDelete": store.ACTION_DELETE,
-		"expire":           store.ACTION_DELETE,
+		"create":           store.ActionPut,
+		"set":              store.ActionPut,
+		"update":           store.ActionPut,
+		"delete":           store.ActionPut,
+		"compareAndSwap":   store.ActionPut,
+		"compareAndDelete": store.ActionDelete,
+		"expire":           store.ActionDelete,
 	}
 )
 
@@ -220,6 +220,19 @@ func (s *Etcd) Exists(key string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// Update is an alias for Put with key exist
+func (s *Etcd) Update(key, value string, opts *store.WriteOptions) error {
+	setOpts := &etcd.SetOptions{PrevExist: etcd.PrevExist}
+
+	// Set options
+	if opts != nil {
+		setOpts.TTL = opts.TTL
+	}
+
+	_, err := s.client.Set(context.Background(), s.normalize(key), string(value), setOpts)
+	return err
 }
 
 func (s *Etcd) makeWatchResponse(r *etcd.Response) *store.WatchResponse {

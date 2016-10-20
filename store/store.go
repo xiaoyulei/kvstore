@@ -10,8 +10,8 @@ const (
 	// ETCD backend
 	ETCD = "etcd"
 
-	// ETCD V3 backend
-	ETCD_V3 = "etcdv3"
+	// ETCDV3 backend
+	ETCDV3 = "etcdv3"
 
 	// ZK backend
 	ZK = "zk"
@@ -72,6 +72,9 @@ type Store interface {
 	// Verify if a Key exists in the store
 	Exists(key string) (bool, error)
 
+	// Update is an alias for Put with key exist
+	Update(key, value string, opts *WriteOptions) error
+
 	// Watch for changes on a key
 	Watch(key string, opt *WatchOptions, stopCh <-chan struct{}) (<-chan *WatchResponse, error)
 
@@ -115,23 +118,17 @@ type LockOptions struct {
 	RenewLock chan struct{} // Optional, chan used to control and stop the session ttl renewal for the lock
 }
 
+// ActionXXX is the action definition of request.
 const (
-	ACTION_PUT    = "PUT"
-	ACTION_DELETE = "DELETE"
+	ActionPut    = "PUT"
+	ActionDelete = "DELETE"
 )
 
+// WatchResponse will be returned when watch event happen.
 type WatchResponse struct {
 	Action  string
 	PreNode *KVPair
 	Node    *KVPair
-}
-
-func NewWatchResponse(action string, preNode, node *KVPair) *WatchResponse {
-	return &WatchResponse{
-		Action:  action,
-		PreNode: preNode,
-		Node:    node,
-	}
 }
 
 // WriteOptions contains optional request parameters
