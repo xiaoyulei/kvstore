@@ -290,14 +290,14 @@ func (s *Etcd) watch(key string, opt *store.WatchOptions, recursive bool, stopCh
 			case <-stopCh:
 				return
 			default:
-			}
+				result, err := watcher.Next(context.Background())
+				if err != nil {
+					log.Printf("watcher next fail. %v", err)
+					continue
+				}
 
-			result, err := watcher.Next(context.Background())
-			if err != nil {
-				log.Fatalf("watcher next fail. %v", err)
+				resp <- s.makeWatchResponse(result)
 			}
-
-			resp <- s.makeWatchResponse(result)
 		}
 	}()
 

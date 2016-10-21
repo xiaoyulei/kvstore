@@ -210,18 +210,25 @@ func (s *Etcd) watch(key string, prefix bool, opt *store.WatchOptions, stopCh <-
 	if opt != nil {
 		opts = append(opts, etcd.WithRev(int64(opt.Index)))
 	}
-	watchChan = s.client.Watch(s.client.Ctx(), s.normalize(key), opts...)
+
+	watcher := etcd.NewWatcher(s.client)
+	watchChan = watcher.Watch(s.client.Ctx(), s.normalize(key), opts...)
 
 	// resp is sending back events to the caller
 	resp := make(chan *store.WatchResponse)
 	go func() {
 		defer close(resp)
+		defer watcher.Close()
+
 		for {
 			select {
 			case <-stopCh:
 				return
 
-			case ch := <-watchChan:
+			case ch, ok := <-watchChan:
+				if !ok {
+					return
+				}
 				resp <- s.makeWatchResponse(ch)
 			}
 		}
