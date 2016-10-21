@@ -235,6 +235,20 @@ func (s *Etcd) Update(key, value string, opts *store.WriteOptions) error {
 	return err
 }
 
+// Create is an alias for Put with key not exist
+func (s *Etcd) Create(key, value string, opts *store.WriteOptions) error {
+	setOpts := &etcd.SetOptions{PrevExist: etcd.PrevNoExist}
+
+	// Set options
+	if opts != nil {
+		setOpts.TTL = opts.TTL
+		setOpts.Dir = opts.IsDir
+	}
+
+	_, err := s.client.Set(context.Background(), s.normalize(key), string(value), setOpts)
+	return err
+}
+
 func (s *Etcd) makeWatchResponse(r *etcd.Response) *store.WatchResponse {
 	var resp store.WatchResponse
 	resp.Action = actionMap[r.Action]
