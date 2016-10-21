@@ -20,6 +20,7 @@ install:
 
 script:
   - ./etcd/etcd --listen-client-urls 'http://0.0.0.0:2379' --advertise-client-urls 'http://127.0.0.1:2379' >/dev/null 2>&1 &
+  - sleep 5
   - echo very-secure|ETCDCTL_API=3 ./etcd/etcdctl --endpoints=[localhost:2379] user add --interactive=false test
 #  - ./zk/bin/zkServer.sh start ./zk/conf/zoo.cfg 1> /dev/null
   - ci/validate-gofmt
