@@ -140,6 +140,31 @@ func (s *Etcd) Update(key, value string, opts *store.WriteOptions) error {
 	return nil
 }
 
+// Create is an alias for Put with key not exist
+func (s *Etcd) Create(key, value string, opts *store.WriteOptions) error {
+	req := etcd.OpPut(key, value)
+	if opts != nil {
+		leaseResp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL))
+		if err != nil {
+			return err
+		}
+
+		req = etcd.OpPut(key, value, etcd.WithLease(leaseResp.ID))
+	}
+
+	txn := s.client.Txn(s.client.Ctx())
+	resp, err := txn.If(etcd.Compare(etcd.CreateRevision(key), "=", 0)).Then(req).Commit()
+	if err != nil {
+		return err
+	}
+
+	if !resp.Succeeded {
+		return store.ErrKeyExists
+	}
+
+	return nil
+}
+
 // Delete a value at "key"
 func (s *Etcd) Delete(key string) error {
 	_, err := s.client.Delete(s.client.Ctx(), s.normalize(key))

@@ -75,6 +75,9 @@ type Store interface {
 	// Update is an alias for Put with key exist
 	Update(key, value string, opts *WriteOptions) error
 
+	// Create is an alias for Put with key not exist
+	Create(key, value string, opts *WriteOptions) error
+
 	// Watch for changes on a key
 	Watch(key string, opt *WatchOptions, stopCh <-chan struct{}) (<-chan *WatchResponse, error)
 

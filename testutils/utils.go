@@ -12,7 +12,7 @@ import (
 // RunTestCommon tests the minimal required APIs which
 // should be supported by all K/V backends
 func RunTestCommon(t *testing.T, kv store.Store) {
-	testPutGetDeleteExistsUpdate(t, kv)
+	testPutGetDeleteExistsUpdateCreate(t, kv)
 	testList(t, kv)
 	testDeleteTree(t, kv)
 }
@@ -56,23 +56,27 @@ func RunTestTTL(t *testing.T, kv store.Store, backup store.Store) {
 	testPutTTL(t, kv, backup)
 }
 
-func testPutGetDeleteExistsUpdate(t *testing.T, kv store.Store) {
+func testPutGetDeleteExistsUpdateCreate(t *testing.T, kv store.Store) {
 	// Get a not exist key should return ErrKeyNotFound
-	pair, err := kv.Get("testPutGetDeleteUpdate_not_exist_key")
+	pair, err := kv.Get("testPutGetDeleteUpdateCreate_not_exist_key")
 	assert.Equal(t, store.ErrKeyNotFound, err)
 
 	value := "bar"
 	for _, key := range []string{
-		"testPutGetDeleteExistsUpdate",
-		"testPutGetDeleteExistsUpdate/",
-		"testPutGetDeleteExistsUpdate/testbar/",
-		"testPutGetDeleteExistsUpdate/testbar/testfoobar",
+		"testPutGetDeleteExistsUpdateCreate",
+		"testPutGetDeleteExistsUpdateCreate/",
+		"testPutGetDeleteExistsUpdateCreate/testbar/",
+		"testPutGetDeleteExistsUpdateCreate/testbar/testfoobar",
 	} {
 		failMsg := fmt.Sprintf("Fail key %s", key)
 
 		// Update no exist key
 		err = kv.Update(key, value, nil)
 		assert.Error(t, err, failMsg)
+
+		// Create no exist key
+		err = kv.Create(key, value, nil)
+		assert.NoError(t, err, failMsg)
 
 		// Put the key
 		err = kv.Put(key, value, nil)
@@ -95,6 +99,10 @@ func testPutGetDeleteExistsUpdate(t *testing.T, kv store.Store) {
 		// Update exist key
 		err = kv.Update(key, value, nil)
 		assert.NoError(t, err, failMsg)
+
+		// Create exist key
+		err = kv.Create(key, value, nil)
+		assert.Error(t, err, failMsg)
 
 		// Delete the key
 		err = kv.Delete(key)
@@ -645,7 +653,7 @@ func testDeleteTree(t *testing.T, kv store.Store) {
 func RunCleanup(t *testing.T, kv store.Store) {
 	for _, key := range []string{
 		"testAtomicPutWithSlashSuffixKey",
-		"testPutGetDeleteExistsUpdate",
+		"testPutGetDeleteExistsUpdateCreate",
 		"testWatch",
 		"testWatchTree",
 		"testAtomicPut",
