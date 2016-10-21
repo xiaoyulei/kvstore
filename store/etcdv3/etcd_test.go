@@ -34,7 +34,7 @@ func makeEtcdClient(t *testing.T) store.Store {
 func TestRegister(t *testing.T) {
 	Register()
 
-	kv, err := kvstore.NewStore(store.ETCD_V3, []string{client}, nil)
+	kv, err := kvstore.NewStore(store.ETCDV3, []string{client}, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, kv)
 
@@ -48,11 +48,11 @@ func TestEtcdStore(t *testing.T) {
 	lockKV := makeEtcdClient(t)
 	ttlKV := makeEtcdClient(t)
 
+	defer testutils.RunCleanup(t, kv)
 	testutils.RunTestCommon(t, kv)
 	testutils.RunTestAtomic(t, kv)
 	testutils.RunTestWatch(t, kv)
 	testutils.RunTestLockV3(t, kv)
 	testutils.RunTestLockTTL(t, kv, lockKV)
 	testutils.RunTestTTL(t, kv, ttlKV)
-	testutils.RunCleanup(t, kv)
 }

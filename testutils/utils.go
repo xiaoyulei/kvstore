@@ -12,7 +12,7 @@ import (
 // RunTestCommon tests the minimal required APIs which
 // should be supported by all K/V backends
 func RunTestCommon(t *testing.T, kv store.Store) {
-	testPutGetDeleteExists(t, kv)
+	testPutGetDeleteExistsUpdate(t, kv)
 	testList(t, kv)
 	testDeleteTree(t, kv)
 }
@@ -33,6 +33,8 @@ func RunTestWatch(t *testing.T, kv store.Store) {
 	testWatchTree(t, kv)
 }
 
+// RunTestLockV3 tests the KV pair Lock/Unlock APIs supported
+// by etcd client v3.
 func RunTestLockV3(t *testing.T, kv store.Store) {
 	testLockUnlockV3(t, kv)
 }
@@ -54,19 +56,23 @@ func RunTestTTL(t *testing.T, kv store.Store, backup store.Store) {
 	testPutTTL(t, kv, backup)
 }
 
-func testPutGetDeleteExists(t *testing.T, kv store.Store) {
+func testPutGetDeleteExistsUpdate(t *testing.T, kv store.Store) {
 	// Get a not exist key should return ErrKeyNotFound
-	pair, err := kv.Get("testPutGetDelete_not_exist_key")
+	pair, err := kv.Get("testPutGetDeleteUpdate_not_exist_key")
 	assert.Equal(t, store.ErrKeyNotFound, err)
 
 	value := "bar"
 	for _, key := range []string{
-		"testPutGetDeleteExists",
-		"testPutGetDeleteExists/",
-		"testPutGetDeleteExists/testbar/",
-		"testPutGetDeleteExists/testbar/testfoobar",
+		"testPutGetDeleteExistsUpdate",
+		"testPutGetDeleteExistsUpdate/",
+		"testPutGetDeleteExistsUpdate/testbar/",
+		"testPutGetDeleteExistsUpdate/testbar/testfoobar",
 	} {
 		failMsg := fmt.Sprintf("Fail key %s", key)
+
+		// Update no exist key
+		err = kv.Update(key, value, nil)
+		assert.Error(t, err, failMsg)
 
 		// Put the key
 		err = kv.Put(key, value, nil)
@@ -85,6 +91,10 @@ func testPutGetDeleteExists(t *testing.T, kv store.Store) {
 		exists, err := kv.Exists(key)
 		assert.NoError(t, err, failMsg)
 		assert.True(t, exists, failMsg)
+
+		// Update exist key
+		err = kv.Update(key, value, nil)
+		assert.NoError(t, err, failMsg)
 
 		// Delete the key
 		err = kv.Delete(key)
@@ -115,7 +125,7 @@ func testWatch(t *testing.T, kv store.Store) {
 	defer func() {
 		close(stopCh)
 	}()
-	events, err := kv.Watch(key, stopCh)
+	events, err := kv.Watch(key, nil, stopCh)
 	assert.NoError(t, err)
 	assert.NotNil(t, events)
 
@@ -147,7 +157,7 @@ func testWatch(t *testing.T, kv store.Store) {
 			assert.NotNil(t, event.Node)
 
 			if eventCount == 1 {
-				assert.Equal(t, event.Action, store.ACTION_PUT)
+				assert.Equal(t, event.Action, store.ActionPut)
 				//assert.Equal(t, event.PreNode.Key, key)
 				//assert.Equal(t, event.PreNode.Value, value)
 				assert.Equal(t, event.Node.Key, key)
@@ -193,7 +203,7 @@ func testWatchTree(t *testing.T, kv store.Store) {
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
-	events, err := kv.WatchTree(dir, stopCh)
+	events, err := kv.WatchTree(dir, nil, stopCh)
 	assert.NoError(t, err)
 	assert.NotNil(t, events)
 
@@ -635,7 +645,7 @@ func testDeleteTree(t *testing.T, kv store.Store) {
 func RunCleanup(t *testing.T, kv store.Store) {
 	for _, key := range []string{
 		"testAtomicPutWithSlashSuffixKey",
-		"testPutGetDeleteExists",
+		"testPutGetDeleteExistsUpdate",
 		"testWatch",
 		"testWatchTree",
 		"testAtomicPut",

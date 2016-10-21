@@ -19,7 +19,7 @@ type Etcd struct {
 
 // Register registers etcd to kvstore
 func Register() {
-	kvstore.AddStore(store.ETCD_V3, New)
+	kvstore.AddStore(store.ETCDV3, New)
 }
 
 // New creates a new Etcd client given a list
@@ -115,6 +115,31 @@ func (s *Etcd) Put(key, value string, opts *store.WriteOptions) error {
 	return err
 }
 
+// Update is an alias for Put with key exist
+func (s *Etcd) Update(key, value string, opts *store.WriteOptions) error {
+	req := etcd.OpPut(key, value)
+	if opts != nil {
+		leaseResp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL))
+		if err != nil {
+			return err
+		}
+
+		req = etcd.OpPut(key, value, etcd.WithLease(leaseResp.ID))
+	}
+
+	txn := s.client.Txn(s.client.Ctx())
+	resp, err := txn.If(etcd.Compare(etcd.CreateRevision(key), ">", 0)).Then(req).Commit()
+	if err != nil {
+		return err
+	}
+
+	if !resp.Succeeded {
+		return store.ErrKeyNotFound
+	}
+
+	return nil
+}
+
 // Delete a value at "key"
 func (s *Etcd) Delete(key string) error {
 	_, err := s.client.Delete(s.client.Ctx(), s.normalize(key))
@@ -193,7 +218,7 @@ func (s *Etcd) makeWatchResponse(resp etcd.WatchResponse) *store.WatchResponse {
 				}
 			}
 			return &store.WatchResponse{
-				Action:  store.ACTION_PUT,
+				Action:  store.ActionPut,
 				PreNode: preNode,
 				Node: &store.KVPair{
 					Key:       string(event.Kv.Key),
@@ -204,7 +229,7 @@ func (s *Etcd) makeWatchResponse(resp etcd.WatchResponse) *store.WatchResponse {
 
 		case mvccpb.DELETE:
 			return &store.WatchResponse{
-				Action: store.ACTION_DELETE,
+				Action: store.ActionDelete,
 				PreNode: &store.KVPair{
 					Key:       string(event.Kv.Key),
 					Value:     string(event.Kv.Value),
@@ -255,9 +280,8 @@ func (s *Etcd) AtomicPut(key, value string, previous *store.KVPair, opts *store.
 
 	if previous == nil {
 		return store.ErrKeyExists
-	} else {
-		return store.ErrKeyModified
 	}
+	return store.ErrKeyModified
 }
 
 // AtomicDelete deletes a value at "key" if the key
@@ -310,13 +334,14 @@ func (s *Etcd) DeleteTree(directory string) error {
 // with `.Lock`. The Value is optional.
 // Now LockOptions not work in etcd v3.
 func (s *Etcd) NewLock(key string, opt *store.LockOptions) store.Locker {
-	var session *concurrency.Session
-	if opt != nil {
-		session, _ = concurrency.NewSession(s.client, concurrency.WithTTL(int(opt.TTL)))
-	} else {
-		session, _ = concurrency.NewSession(s.client, nil)
-	}
-	return concurrency.NewLocker(session, key)
+	//var session *concurrency.Session
+	//if opt != nil {
+	//	session, _ = concurrency.NewSession(s.client, concurrency.WithTTL(int(opt.TTL)))
+	//} else {
+	//	session, _ = concurrency.NewSession(s.client)
+	//}
+	//return concurrency.NewLocker(session, key)
+	return concurrency.NewLocker(s.client, key)
 }
 
 // Close closes the client connection
