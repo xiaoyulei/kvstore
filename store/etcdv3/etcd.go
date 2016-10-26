@@ -2,7 +2,6 @@ package etcdv3
 
 import (
 	"log"
-	"strings"
 
 	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
@@ -55,12 +54,6 @@ func New(addrs []string, options *store.Config) (store.Store, error) {
 	return s, nil
 }
 
-// Normalize the key for usage in Etcd
-func (s *Etcd) normalize(key string) string {
-	key = store.Normalize(key)
-	return strings.TrimPrefix(key, "/")
-}
-
 // Get the value at "key", returns the last modified
 // index to use in conjunction to Atomic calls
 func (s *Etcd) Get(key string) (pair *store.KVPair, err error) {
@@ -79,7 +72,7 @@ func (s *Etcd) get(key string, prefix bool) (pairs []*store.KVPair, err error) {
 		opts = []etcd.OpOption{etcd.WithPrefix()}
 	}
 
-	resp, err = s.client.Get(s.client.Ctx(), s.normalize(key), opts...)
+	resp, err = s.client.Get(s.client.Ctx(), store.Normalize(key), opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -107,16 +100,18 @@ func (s *Etcd) Put(key, value string, opts *store.WriteOptions) error {
 		if err != nil {
 			log.Fatal(err)
 		}
-		_, err = s.client.Put(s.client.Ctx(), s.normalize(key), string(value), etcd.WithLease(resp.ID))
+		_, err = s.client.Put(s.client.Ctx(), store.Normalize(key), string(value), etcd.WithLease(resp.ID))
 		return err
 	}
 
-	_, err := s.client.Put(s.client.Ctx(), s.normalize(key), string(value))
+	_, err := s.client.Put(s.client.Ctx(), store.Normalize(key), string(value))
 	return err
 }
 
 // Update is an alias for Put with key exist
 func (s *Etcd) Update(key, value string, opts *store.WriteOptions) error {
+	key = store.Normalize(key)
+
 	req := etcd.OpPut(key, value)
 	if opts != nil {
 		leaseResp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL.Seconds()))
@@ -142,6 +137,8 @@ func (s *Etcd) Update(key, value string, opts *store.WriteOptions) error {
 
 // Create is an alias for Put with key not exist
 func (s *Etcd) Create(key, value string, opts *store.WriteOptions) error {
+	key = store.Normalize(key)
+
 	req := etcd.OpPut(key, value)
 	if opts != nil {
 		leaseResp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL.Seconds()))
@@ -167,7 +164,7 @@ func (s *Etcd) Create(key, value string, opts *store.WriteOptions) error {
 
 // Delete a value at "key"
 func (s *Etcd) Delete(key string) error {
-	_, err := s.client.Delete(s.client.Ctx(), s.normalize(key))
+	_, err := s.client.Delete(s.client.Ctx(), store.Normalize(key))
 	return err
 }
 
@@ -212,7 +209,7 @@ func (s *Etcd) watch(key string, prefix bool, opt *store.WatchOptions, stopCh <-
 	}
 
 	watcher := etcd.NewWatcher(s.client)
-	watchChan = watcher.Watch(s.client.Ctx(), s.normalize(key), opts...)
+	watchChan = watcher.Watch(s.client.Ctx(), store.Normalize(key), opts...)
 
 	// resp is sending back events to the caller
 	resp := make(chan *store.WatchResponse)
@@ -244,12 +241,13 @@ func (s *Etcd) makeWatchResponse(resp etcd.WatchResponse) *store.WatchResponse {
 			var preNode *store.KVPair
 			if event.PrevKv != nil {
 				preNode = &store.KVPair{
-					Key:       string(event.Kv.Key),
-					Value:     string(event.Kv.Value),
-					LastIndex: uint64(event.Kv.ModRevision),
+					Key:       string(event.PrevKv.Key),
+					Value:     string(event.PrevKv.Value),
+					LastIndex: uint64(event.PrevKv.ModRevision),
 				}
 			}
 			return &store.WatchResponse{
+				Error:   resp.Err(),
 				Action:  store.ActionPut,
 				PreNode: preNode,
 				Node: &store.KVPair{
@@ -261,6 +259,7 @@ func (s *Etcd) makeWatchResponse(resp etcd.WatchResponse) *store.WatchResponse {
 
 		case mvccpb.DELETE:
 			return &store.WatchResponse{
+				Error:  resp.Err(),
 				Action: store.ActionDelete,
 				PreNode: &store.KVPair{
 					Key:       string(event.Kv.Key),
@@ -280,6 +279,8 @@ func (s *Etcd) makeWatchResponse(resp etcd.WatchResponse) *store.WatchResponse {
 // AtomicPut puts a value at "key" if the key has not been
 // modified in the meantime, throws an error if this is the case
 func (s *Etcd) AtomicPut(key, value string, previous *store.KVPair, opts *store.WriteOptions) error {
+	key = store.Normalize(key)
+
 	req := etcd.OpPut(key, value)
 	if opts != nil {
 		leaseResp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL.Seconds()))
@@ -320,6 +321,8 @@ func (s *Etcd) AtomicPut(key, value string, previous *store.KVPair, opts *store.
 // has not been modified in the meantime, throws an
 // error if this is the case
 func (s *Etcd) AtomicDelete(key string, previous *store.KVPair) error {
+	key = store.Normalize(key)
+
 	if previous == nil {
 		return store.ErrPreviousNotSpecified
 	}
@@ -347,7 +350,7 @@ func (s *Etcd) AtomicDelete(key string, previous *store.KVPair) error {
 
 // List child nodes of a given directory
 func (s *Etcd) List(directory string) ([]*store.KVPair, error) {
-	pairs, err := s.get(s.normalize(directory), true)
+	pairs, err := s.get(store.Normalize(directory), true)
 	if err != nil {
 		return nil, err
 	}
@@ -357,23 +360,21 @@ func (s *Etcd) List(directory string) ([]*store.KVPair, error) {
 
 // DeleteTree deletes a range of keys under a given directory
 func (s *Etcd) DeleteTree(directory string) error {
-	_, err := s.client.Delete(s.client.Ctx(), s.normalize(directory), etcd.WithPrefix())
+	_, err := s.client.Delete(s.client.Ctx(), store.Normalize(directory), etcd.WithPrefix())
 	return err
 }
 
 // NewLock creates a lock for a given key.
 // The returned Locker is not held and must be acquired
 // with `.Lock`. The Value is optional.
-// Now LockOptions not work in etcd v3.
 func (s *Etcd) NewLock(key string, opt *store.LockOptions) store.Locker {
-	//var session *concurrency.Session
-	//if opt != nil {
-	//	session, _ = concurrency.NewSession(s.client, concurrency.WithTTL(int(opt.TTL.Seconds())))
-	//} else {
-	//	session, _ = concurrency.NewSession(s.client)
-	//}
-	//return concurrency.NewLocker(session, key)
-	return concurrency.NewLocker(s.client, key)
+	var session *concurrency.Session
+	if opt != nil {
+		session, _ = concurrency.NewSession(s.client, concurrency.WithTTL(int(opt.TTL.Seconds())))
+	} else {
+		session, _ = concurrency.NewSession(s.client)
+	}
+	return concurrency.NewLocker(session, store.Normalize(key))
 }
 
 // Close closes the client connection

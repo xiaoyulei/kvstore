@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"golang.org/x/net/context"
@@ -138,12 +137,6 @@ func setCredentials(cfg *etcd.Config, username, password string) {
 	cfg.Password = password
 }
 
-// Normalize the key for usage in Etcd
-func (s *Etcd) normalize(key string) string {
-	key = store.Normalize(key)
-	return strings.TrimPrefix(key, "/")
-}
-
 // keyNotFound checks on the error returned by the KeysAPI
 // to verify if the key exists in the store or not
 func keyNotFound(err error) bool {
@@ -166,7 +159,7 @@ func (s *Etcd) Get(key string) (pair *store.KVPair, err error) {
 		Quorum: true,
 	}
 
-	result, err := s.client.Get(context.Background(), s.normalize(key), getOpts)
+	result, err := s.client.Get(context.Background(), store.Normalize(key), getOpts)
 	if err != nil {
 		if keyNotFound(err) {
 			return nil, store.ErrKeyNotFound
@@ -193,7 +186,7 @@ func (s *Etcd) Put(key, value string, opts *store.WriteOptions) error {
 		setOpts.TTL = opts.TTL
 	}
 
-	_, err := s.client.Set(context.Background(), s.normalize(key), string(value), setOpts)
+	_, err := s.client.Set(context.Background(), store.Normalize(key), string(value), setOpts)
 	return err
 }
 
@@ -203,7 +196,7 @@ func (s *Etcd) Delete(key string) error {
 		Recursive: false,
 	}
 
-	_, err := s.client.Delete(context.Background(), s.normalize(key), opts)
+	_, err := s.client.Delete(context.Background(), store.Normalize(key), opts)
 	if keyNotFound(err) {
 		return store.ErrKeyNotFound
 	}
@@ -231,7 +224,7 @@ func (s *Etcd) Update(key, value string, opts *store.WriteOptions) error {
 		setOpts.TTL = opts.TTL
 	}
 
-	_, err := s.client.Set(context.Background(), s.normalize(key), string(value), setOpts)
+	_, err := s.client.Set(context.Background(), store.Normalize(key), string(value), setOpts)
 	return err
 }
 
@@ -245,12 +238,16 @@ func (s *Etcd) Create(key, value string, opts *store.WriteOptions) error {
 		setOpts.Dir = opts.IsDir
 	}
 
-	_, err := s.client.Set(context.Background(), s.normalize(key), string(value), setOpts)
+	_, err := s.client.Set(context.Background(), store.Normalize(key), string(value), setOpts)
 	return err
 }
 
-func (s *Etcd) makeWatchResponse(r *etcd.Response) *store.WatchResponse {
-	var resp store.WatchResponse
+func (s *Etcd) makeWatchResponse(r *etcd.Response, err error) *store.WatchResponse {
+	resp := &store.WatchResponse{Error: err}
+	if err != nil {
+		return resp
+	}
+
 	resp.Action = actionMap[r.Action]
 
 	if r.PrevNode != nil {
@@ -269,7 +266,7 @@ func (s *Etcd) makeWatchResponse(r *etcd.Response) *store.WatchResponse {
 		}
 	}
 
-	return &resp
+	return resp
 }
 
 func (s *Etcd) watch(key string, opt *store.WatchOptions, recursive bool, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
@@ -277,7 +274,7 @@ func (s *Etcd) watch(key string, opt *store.WatchOptions, recursive bool, stopCh
 	if opt != nil {
 		opts.AfterIndex = opt.Index
 	}
-	watcher := s.client.Watcher(s.normalize(key), opts)
+	watcher := s.client.Watcher(store.Normalize(key), opts)
 
 	// watchCh is sending back events to the caller
 	resp := make(chan *store.WatchResponse)
@@ -290,13 +287,7 @@ func (s *Etcd) watch(key string, opt *store.WatchOptions, recursive bool, stopCh
 			case <-stopCh:
 				return
 			default:
-				result, err := watcher.Next(context.Background())
-				if err != nil {
-					log.Printf("watcher next fail. %v", err)
-					continue
-				}
-
-				resp <- s.makeWatchResponse(result)
+				resp <- s.makeWatchResponse(watcher.Next(context.Background()))
 			}
 		}
 	}()
@@ -342,7 +333,7 @@ func (s *Etcd) AtomicPut(key, value string, previous *store.KVPair, opts *store.
 		}
 	}
 
-	_, err = s.client.Set(context.Background(), s.normalize(key), string(value), setOpts)
+	_, err = s.client.Set(context.Background(), store.Normalize(key), string(value), setOpts)
 	if err != nil {
 		if etcdError, ok := err.(etcd.Error); ok {
 			// Compare failed
@@ -375,7 +366,7 @@ func (s *Etcd) AtomicDelete(key string, previous *store.KVPair) error {
 		delOpts.PrevIndex = previous.LastIndex
 	}
 
-	_, err := s.client.Delete(context.Background(), s.normalize(key), delOpts)
+	_, err := s.client.Delete(context.Background(), store.Normalize(key), delOpts)
 	if err != nil {
 		if etcdError, ok := err.(etcd.Error); ok {
 			// Key Not Found
@@ -401,7 +392,7 @@ func (s *Etcd) List(directory string) ([]*store.KVPair, error) {
 		Sort:      true,
 	}
 
-	resp, err := s.client.Get(context.Background(), s.normalize(directory), getOpts)
+	resp, err := s.client.Get(context.Background(), store.Normalize(directory), getOpts)
 	if err != nil {
 		if keyNotFound(err) {
 			return nil, store.ErrKeyNotFound
@@ -426,7 +417,7 @@ func (s *Etcd) DeleteTree(directory string) error {
 		Recursive: true,
 	}
 
-	_, err := s.client.Delete(context.Background(), s.normalize(directory), delOpts)
+	_, err := s.client.Delete(context.Background(), store.Normalize(directory), delOpts)
 	if keyNotFound(err) {
 		return store.ErrKeyNotFound
 	}
@@ -435,7 +426,7 @@ func (s *Etcd) DeleteTree(directory string) error {
 
 // NewLock returns a handle to a lock struct which can
 // be used to provide mutual exclusion on a key
-func (s *Etcd) NewLock(key string, options *store.LockOptions) (lock store.Locker) {
+func (s *Etcd) NewLock(key string, options *store.LockOptions) store.Locker {
 	var value string
 	ttl := defaultLockTTL
 	renewCh := make(chan struct{})
@@ -452,15 +443,13 @@ func (s *Etcd) NewLock(key string, options *store.LockOptions) (lock store.Locke
 	}
 
 	// Create lock object
-	lock = &etcdLock{
+	return &etcdLock{
 		client:    s.client,
 		stopRenew: renewCh,
-		key:       s.normalize(key),
+		key:       store.Normalize(key),
 		value:     value,
 		ttl:       ttl,
 	}
-
-	return lock
 }
 
 // Lock attempts to acquire the lock and blocks while
@@ -491,7 +480,6 @@ func (l *etcdLock) Lock() {
 
 		setOpts.PrevExist = etcd.PrevExist
 		l.last, err = l.client.Set(context.Background(), l.key, l.value, setOpts)
-
 		if err == nil {
 			// Leader section
 			l.stopLock = stopLocking
@@ -565,7 +553,7 @@ func (l *etcdLock) waitLock(key string, errorCh chan error, stopWatchCh chan boo
 			errorCh <- err
 			return
 		}
-		if event.Action == "delete" || event.Action == "expire" {
+		if event.Action == "delete" || event.Action == "compareAndDelete" || event.Action == "expire" {
 			free <- true
 			return
 		}
