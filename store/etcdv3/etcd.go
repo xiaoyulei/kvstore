@@ -103,7 +103,7 @@ func (s *Etcd) get(key string, prefix bool) (pairs []*store.KVPair, err error) {
 // Put a value at "key"
 func (s *Etcd) Put(key, value string, opts *store.WriteOptions) error {
 	if opts != nil {
-		resp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL))
+		resp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL.Seconds()))
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -119,7 +119,7 @@ func (s *Etcd) Put(key, value string, opts *store.WriteOptions) error {
 func (s *Etcd) Update(key, value string, opts *store.WriteOptions) error {
 	req := etcd.OpPut(key, value)
 	if opts != nil {
-		leaseResp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL))
+		leaseResp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL.Seconds()))
 		if err != nil {
 			return err
 		}
@@ -144,7 +144,7 @@ func (s *Etcd) Update(key, value string, opts *store.WriteOptions) error {
 func (s *Etcd) Create(key, value string, opts *store.WriteOptions) error {
 	req := etcd.OpPut(key, value)
 	if opts != nil {
-		leaseResp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL))
+		leaseResp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL.Seconds()))
 		if err != nil {
 			return err
 		}
@@ -282,7 +282,7 @@ func (s *Etcd) makeWatchResponse(resp etcd.WatchResponse) *store.WatchResponse {
 func (s *Etcd) AtomicPut(key, value string, previous *store.KVPair, opts *store.WriteOptions) error {
 	req := etcd.OpPut(key, value)
 	if opts != nil {
-		leaseResp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL))
+		leaseResp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL.Seconds()))
 		if err != nil {
 			return err
 		}
@@ -368,7 +368,7 @@ func (s *Etcd) DeleteTree(directory string) error {
 func (s *Etcd) NewLock(key string, opt *store.LockOptions) store.Locker {
 	//var session *concurrency.Session
 	//if opt != nil {
-	//	session, _ = concurrency.NewSession(s.client, concurrency.WithTTL(int(opt.TTL)))
+	//	session, _ = concurrency.NewSession(s.client, concurrency.WithTTL(int(opt.TTL.Seconds())))
 	//} else {
 	//	session, _ = concurrency.NewSession(s.client)
 	//}
