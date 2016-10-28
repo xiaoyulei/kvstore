@@ -2,6 +2,7 @@ package etcdv3
 
 import (
 	"log"
+	"sync"
 
 	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
@@ -367,7 +368,7 @@ func (s *Etcd) DeleteTree(directory string) error {
 // NewLock creates a lock for a given key.
 // The returned Locker is not held and must be acquired
 // with `.Lock`. The Value is optional.
-func (s *Etcd) NewLock(key string, opt *store.LockOptions) store.Locker {
+func (s *Etcd) NewLock(key string, opt *store.LockOptions) sync.Locker {
 	var session *concurrency.Session
 	if opt != nil {
 		session, _ = concurrency.NewSession(s.client, concurrency.WithTTL(int(opt.TTL.Seconds())))

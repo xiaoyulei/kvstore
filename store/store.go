@@ -3,6 +3,7 @@ package store
 import (
 	"crypto/tls"
 	"errors"
+	"sync"
 	"time"
 )
 
@@ -88,7 +89,7 @@ type Store interface {
 	// NewLock creates a lock for a given key.
 	// The returned Locker is not held and must be acquired
 	// with `.Lock`. The Value is optional.
-	NewLock(key string, opt *LockOptions) Locker
+	NewLock(key string, opt *LockOptions) sync.Locker
 
 	// List the content of a given prefix
 	List(directory string) ([]*KVPair, error)
@@ -144,11 +145,4 @@ type WriteOptions struct {
 // WatchOptions contains optional request parameters
 type WatchOptions struct {
 	Index uint64
-}
-
-// Locker provides locking mechanism on top of the store.
-// Similar to `sync.Lock` except it may return errors.
-type Locker interface {
-	Lock()
-	Unlock()
 }
