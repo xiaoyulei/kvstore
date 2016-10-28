@@ -129,6 +129,7 @@ const (
 
 // WatchResponse will be returned when watch event happen.
 type WatchResponse struct {
+	Error   error
 	Action  string
 	PreNode *KVPair
 	Node    *KVPair

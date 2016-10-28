@@ -48,11 +48,11 @@ func TestEtcdStore(t *testing.T) {
 	lockKV := makeEtcdClient(t)
 	ttlKV := makeEtcdClient(t)
 
-	defer testutils.RunCleanup(t, kv)
+	testutils.RunCleanup(t, kv)
 	testutils.RunTestCommon(t, kv)
 	testutils.RunTestAtomic(t, kv)
 	testutils.RunTestWatch(t, kv)
 	testutils.RunTestLockV3(t, kv)
-	testutils.RunTestLockTTL(t, kv, lockKV)
+	testutils.RunTestLockTTLV3(t, kv, lockKV)
 	testutils.RunTestTTL(t, kv, ttlKV)
 }

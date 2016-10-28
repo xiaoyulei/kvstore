@@ -17,7 +17,18 @@ func CreateEndpoints(addrs []string, scheme string) (entries []string) {
 //     /path/to/key
 //
 func Normalize(key string) string {
-	return "/" + join(SplitKey(key))
+	stringList := SplitKey(key)
+	var parts []string
+	for _, s := range stringList {
+		if len(s) > 0 {
+			parts = append(parts, s)
+		}
+	}
+
+	if len(parts) >= 0 {
+		return "/" + join(parts)
+	}
+	return "/"
 }
 
 // GetDirectory gets the full directory part of
