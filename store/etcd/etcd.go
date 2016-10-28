@@ -287,7 +287,11 @@ func (s *Etcd) watch(key string, opt *store.WatchOptions, recursive bool, stopCh
 			case <-stopCh:
 				return
 			default:
-				resp <- s.makeWatchResponse(watcher.Next(context.Background()))
+				r, err := watcher.Next(context.Background())
+				resp <- s.makeWatchResponse(r, err)
+				if err != nil {
+					return
+				}
 			}
 		}
 	}()
