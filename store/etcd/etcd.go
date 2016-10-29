@@ -150,11 +150,12 @@ func keyNotFound(err error) bool {
 // Get the value at "key", returns the last modified
 // index to use in conjunction to Atomic calls
 func (s *Etcd) Get(key string) (pair *store.KVPair, err error) {
+	key = store.Normalize(key)
 	getOpts := &etcd.GetOptions{
 		Quorum: true,
 	}
 
-	result, err := s.client.Get(context.Background(), store.Normalize(key), getOpts)
+	result, err := s.client.Get(context.Background(), key, getOpts)
 	if err != nil {
 		if keyNotFound(err) {
 			return nil, store.ErrKeyNotFound
@@ -181,7 +182,7 @@ func (s *Etcd) Put(key, value string, opts *store.WriteOptions) error {
 		setOpts.TTL = opts.TTL
 	}
 
-	_, err := s.client.Set(context.Background(), store.Normalize(key), string(value), setOpts)
+	_, err := s.client.Set(context.Background(), store.Normalize(key), value, setOpts)
 	return err
 }
 
@@ -219,7 +220,7 @@ func (s *Etcd) Update(key, value string, opts *store.WriteOptions) error {
 		setOpts.TTL = opts.TTL
 	}
 
-	_, err := s.client.Set(context.Background(), store.Normalize(key), string(value), setOpts)
+	_, err := s.client.Set(context.Background(), store.Normalize(key), value, setOpts)
 	return err
 }
 
@@ -233,7 +234,7 @@ func (s *Etcd) Create(key, value string, opts *store.WriteOptions) error {
 		setOpts.Dir = opts.IsDir
 	}
 
-	_, err := s.client.Set(context.Background(), store.Normalize(key), string(value), setOpts)
+	_, err := s.client.Set(context.Background(), store.Normalize(key), value, setOpts)
 	return err
 }
 
@@ -332,7 +333,7 @@ func (s *Etcd) AtomicPut(key, value string, previous *store.KVPair, opts *store.
 		}
 	}
 
-	_, err = s.client.Set(context.Background(), store.Normalize(key), string(value), setOpts)
+	_, err = s.client.Set(context.Background(), store.Normalize(key), value, setOpts)
 	if err != nil {
 		if etcdError, ok := err.(etcd.Error); ok {
 			// Compare failed
