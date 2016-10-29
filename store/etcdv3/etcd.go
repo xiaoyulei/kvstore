@@ -96,16 +96,17 @@ func (s *Etcd) get(key string, prefix bool) (pairs []*store.KVPair, err error) {
 
 // Put a value at "key"
 func (s *Etcd) Put(key, value string, opts *store.WriteOptions) error {
+	key = store.Normalize(key)
 	if opts != nil {
 		resp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL.Seconds()))
 		if err != nil {
 			log.Fatal(err)
 		}
-		_, err = s.client.Put(s.client.Ctx(), store.Normalize(key), string(value), etcd.WithLease(resp.ID))
+		_, err = s.client.Put(s.client.Ctx(), key, value, etcd.WithLease(resp.ID))
 		return err
 	}
 
-	_, err := s.client.Put(s.client.Ctx(), store.Normalize(key), string(value))
+	_, err := s.client.Put(s.client.Ctx(), key, value)
 	return err
 }
 
