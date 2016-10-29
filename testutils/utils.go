@@ -95,7 +95,7 @@ func testPutGetDeleteExistsUpdateCreate(t *testing.T, kv store.Store) {
 			assert.NotNil(t, pair.Value, failMsg)
 		}
 		assert.Equal(t, pair.Value, value, failMsg)
-		assert.NotEqual(t, pair.LastIndex, 0, failMsg)
+		assert.NotEqual(t, pair.Index, 0, failMsg)
 
 		// Exists should return true
 		exists, err := kv.Exists(key)
@@ -264,7 +264,7 @@ func testAtomicPut(t *testing.T, kv store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, value)
-	assert.NotEqual(t, pair.LastIndex, 0)
+	assert.NotEqual(t, pair.Index, 0)
 
 	// This CAS should fail: previous exists.
 	err = kv.AtomicPut(key, "WORLD", nil, nil)
@@ -275,7 +275,7 @@ func testAtomicPut(t *testing.T, kv store.Store) {
 	assert.NoError(t, err)
 
 	// This CAS should fail, key exists.
-	pair.LastIndex = 6744
+	pair.Index = 6744
 	err = kv.AtomicPut(key, "WORLDWORLD", pair, nil)
 	assert.Error(t, err)
 }
@@ -328,17 +328,17 @@ func testAtomicDelete(t *testing.T, kv store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, value)
-	assert.NotEqual(t, pair.LastIndex, 0)
+	assert.NotEqual(t, pair.Index, 0)
 
-	tempIndex := pair.LastIndex
+	tempIndex := pair.Index
 
 	// AtomicDelete should fail
-	pair.LastIndex = 6744
+	pair.Index = 6744
 	err = kv.AtomicDelete(key, pair)
 	assert.Error(t, err)
 
 	// AtomicDelete should succeed
-	pair.LastIndex = tempIndex
+	pair.Index = tempIndex
 	err = kv.AtomicDelete(key, pair)
 	assert.NoError(t, err)
 
@@ -365,7 +365,7 @@ func testLockUnlock(t *testing.T, kv store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, value)
-	assert.NotEqual(t, pair.LastIndex, 0)
+	assert.NotEqual(t, pair.Index, 0)
 
 	// Unlock should succeed
 	lock.Unlock()
@@ -380,7 +380,7 @@ func testLockUnlock(t *testing.T, kv store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, value)
-	assert.NotEqual(t, pair.LastIndex, 0)
+	assert.NotEqual(t, pair.Index, 0)
 
 	lock.Unlock()
 	assert.NoError(t, err)
@@ -402,7 +402,7 @@ func testLockUnlockV3(t *testing.T, kv store.Store) {
 	if assert.NotNil(t, pairs) {
 		if assert.Equal(t, len(pairs), 1) {
 			assert.NotNil(t, pairs[0].Value)
-			assert.NotEqual(t, pairs[0].LastIndex, 0)
+			assert.NotEqual(t, pairs[0].Index, 0)
 		}
 	}
 
@@ -418,7 +418,7 @@ func testLockUnlockV3(t *testing.T, kv store.Store) {
 	if assert.NotNil(t, pairs) {
 		if assert.Equal(t, len(pairs), 1) {
 			assert.NotNil(t, pairs[0].Value)
-			assert.NotEqual(t, pairs[0].LastIndex, 0)
+			assert.NotEqual(t, pairs[0].Index, 0)
 		}
 	}
 
@@ -448,7 +448,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, value)
-	assert.NotEqual(t, pair.LastIndex, 0)
+	assert.NotEqual(t, pair.Index, 0)
 
 	time.Sleep(3 * time.Second)
 
@@ -475,7 +475,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 			assert.NotNil(t, pair.Value)
 		}
 		assert.Equal(t, pair.Value, value)
-		assert.NotEqual(t, pair.LastIndex, 0)
+		assert.NotEqual(t, pair.Index, 0)
 		lockNew.Unlock()
 		done <- struct{}{}
 	}(done)
@@ -514,7 +514,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, valueNew)
-	assert.NotEqual(t, pair.LastIndex, 0)
+	assert.NotEqual(t, pair.Index, 0)
 
 	lock.Unlock()
 }
@@ -680,7 +680,7 @@ func testDeleteTree(t *testing.T, kv store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, firstValue)
-	assert.NotEqual(t, pair.LastIndex, 0)
+	assert.NotEqual(t, pair.Index, 0)
 
 	// Get should work on the second Key
 	pair, err = kv.Get(secondKey)
@@ -689,7 +689,7 @@ func testDeleteTree(t *testing.T, kv store.Store) {
 		assert.NotNil(t, pair.Value)
 	}
 	assert.Equal(t, pair.Value, secondValue)
-	assert.NotEqual(t, pair.LastIndex, 0)
+	assert.NotEqual(t, pair.Index, 0)
 
 	// Delete Values under directory `nodes`
 	err = kv.DeleteTree(prefix)

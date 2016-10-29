@@ -85,9 +85,9 @@ func (s *Etcd) get(key string, prefix bool) (pairs []*store.KVPair, err error) {
 	pairs = []*store.KVPair{}
 	for _, kv := range resp.Kvs {
 		pairs = append(pairs, &store.KVPair{
-			Key:       string(kv.Key),
-			Value:     string(kv.Value),
-			LastIndex: uint64(kv.ModRevision),
+			Key:   string(kv.Key),
+			Value: string(kv.Value),
+			Index: uint64(kv.ModRevision),
 		})
 	}
 
@@ -242,9 +242,9 @@ func (s *Etcd) makeWatchResponse(resp etcd.WatchResponse) *store.WatchResponse {
 			var preNode *store.KVPair
 			if event.PrevKv != nil {
 				preNode = &store.KVPair{
-					Key:       string(event.PrevKv.Key),
-					Value:     string(event.PrevKv.Value),
-					LastIndex: uint64(event.PrevKv.ModRevision),
+					Key:   string(event.PrevKv.Key),
+					Value: string(event.PrevKv.Value),
+					Index: uint64(event.PrevKv.ModRevision),
 				}
 			}
 			return &store.WatchResponse{
@@ -252,9 +252,9 @@ func (s *Etcd) makeWatchResponse(resp etcd.WatchResponse) *store.WatchResponse {
 				Action:  store.ActionPut,
 				PreNode: preNode,
 				Node: &store.KVPair{
-					Key:       string(event.Kv.Key),
-					Value:     string(event.Kv.Value),
-					LastIndex: uint64(event.Kv.ModRevision),
+					Key:   string(event.Kv.Key),
+					Value: string(event.Kv.Value),
+					Index: uint64(event.Kv.ModRevision),
 				},
 			}
 
@@ -263,9 +263,9 @@ func (s *Etcd) makeWatchResponse(resp etcd.WatchResponse) *store.WatchResponse {
 				Error:  resp.Err(),
 				Action: store.ActionDelete,
 				PreNode: &store.KVPair{
-					Key:       string(event.Kv.Key),
-					Value:     string(event.Kv.Value),
-					LastIndex: uint64(event.Kv.ModRevision),
+					Key:   string(event.Kv.Key),
+					Value: string(event.Kv.Value),
+					Index: uint64(event.Kv.ModRevision),
 				},
 				Node: nil,
 			}
@@ -297,8 +297,8 @@ func (s *Etcd) AtomicPut(key, value string, previous *store.KVPair, opts *store.
 		cmp = append(cmp, etcd.Compare(etcd.CreateRevision(key), "=", 0))
 	} else {
 		cmp = append(cmp, etcd.Compare(etcd.Value(key), "=", previous.Value))
-		if previous.LastIndex != 0 {
-			cmp = append(cmp, etcd.Compare(etcd.ModRevision(key), "=", int64(previous.LastIndex)))
+		if previous.Index != 0 {
+			cmp = append(cmp, etcd.Compare(etcd.ModRevision(key), "=", int64(previous.Index)))
 		}
 	}
 
@@ -329,8 +329,8 @@ func (s *Etcd) AtomicDelete(key string, previous *store.KVPair) error {
 	}
 
 	cmp := []etcd.Cmp{etcd.Compare(etcd.Value(key), "=", previous.Value)}
-	if previous.LastIndex != 0 {
-		cmp = append(cmp, etcd.Compare(etcd.ModRevision(key), "=", int64(previous.LastIndex)))
+	if previous.Index != 0 {
+		cmp = append(cmp, etcd.Compare(etcd.ModRevision(key), "=", int64(previous.Index)))
 	}
 
 	txn := s.client.Txn(s.client.Ctx())

@@ -110,9 +110,9 @@ type Store interface {
 
 // KVPair represents {Key, Value} tuple
 type KVPair struct {
-	Key       string
-	Value     string
-	LastIndex uint64
+	Key   string
+	Value string
+	Index uint64
 }
 
 // LockOptions contains optional request parameters
