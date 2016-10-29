@@ -2,7 +2,6 @@ package etcd
 
 import (
 	"crypto/tls"
-	"errors"
 	"log"
 	"net"
 	"net/http"
@@ -17,11 +16,6 @@ import (
 )
 
 var (
-	// ErrAbortTryLock is thrown when a user stops trying to seek the lock
-	// by sending a signal to the stop chan, this is used to verify if the
-	// operation succeeded
-	ErrAbortTryLock = errors.New("lock operation aborted")
-
 	actionMap = map[string]string{
 		"create":           store.ActionPut,
 		"set":              store.ActionPut,
@@ -169,9 +163,9 @@ func (s *Etcd) Get(key string) (pair *store.KVPair, err error) {
 	}
 
 	pair = &store.KVPair{
-		Key:       key,
-		Value:     result.Node.Value,
-		LastIndex: result.Node.ModifiedIndex,
+		Key:   key,
+		Value: result.Node.Value,
+		Index: result.Node.ModifiedIndex,
 	}
 
 	return pair, nil
@@ -253,17 +247,17 @@ func (s *Etcd) makeWatchResponse(r *etcd.Response, err error) *store.WatchRespon
 
 	if r.PrevNode != nil {
 		resp.PreNode = &store.KVPair{
-			Key:       r.PrevNode.Key,
-			Value:     r.PrevNode.Value,
-			LastIndex: r.PrevNode.ModifiedIndex,
+			Key:   r.PrevNode.Key,
+			Value: r.PrevNode.Value,
+			Index: r.PrevNode.ModifiedIndex,
 		}
 	}
 
 	if r.Node != nil {
 		resp.Node = &store.KVPair{
-			Key:       r.Node.Key,
-			Value:     r.Node.Value,
-			LastIndex: r.Node.ModifiedIndex,
+			Key:   r.Node.Key,
+			Value: r.Node.Value,
+			Index: r.Node.ModifiedIndex,
 		}
 	}
 
@@ -327,7 +321,7 @@ func (s *Etcd) AtomicPut(key, value string, previous *store.KVPair, opts *store.
 	if previous != nil {
 		setOpts.PrevExist = etcd.PrevExist
 		setOpts.PrevValue = previous.Value
-		setOpts.PrevIndex = previous.LastIndex
+		setOpts.PrevIndex = previous.Index
 	} else {
 		setOpts.PrevExist = etcd.PrevNoExist
 	}
@@ -368,7 +362,7 @@ func (s *Etcd) AtomicDelete(key string, previous *store.KVPair) error {
 
 	if previous != nil {
 		delOpts.PrevValue = previous.Value
-		delOpts.PrevIndex = previous.LastIndex
+		delOpts.PrevIndex = previous.Index
 	}
 
 	_, err := s.client.Delete(context.Background(), store.Normalize(key), delOpts)
@@ -408,9 +402,9 @@ func (s *Etcd) List(directory string) ([]*store.KVPair, error) {
 	kv := []*store.KVPair{}
 	for _, n := range resp.Node.Nodes {
 		kv = append(kv, &store.KVPair{
-			Key:       n.Key,
-			Value:     n.Value,
-			LastIndex: n.ModifiedIndex,
+			Key:   n.Key,
+			Value: n.Value,
+			Index: n.ModifiedIndex,
 		})
 	}
 	return kv, nil
