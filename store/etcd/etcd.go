@@ -1,14 +1,13 @@
 package etcd
 
 import (
+	"context"
 	"crypto/tls"
 	"log"
 	"net"
 	"net/http"
 	"sync"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
@@ -265,29 +264,22 @@ func (s *Etcd) makeWatchResponse(r *etcd.Response, err error) *store.WatchRespon
 	return resp
 }
 
-func (s *Etcd) watch(key string, opt *store.WatchOptions, recursive bool, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
+func (s *Etcd) watch(ctx context.Context, key string, opt *store.WatchOptions, recursive bool) (<-chan *store.WatchResponse, error) {
 	opts := &etcd.WatcherOptions{Recursive: recursive}
 	if opt != nil {
 		opts.AfterIndex = opt.Index
 	}
 	watcher := s.client.Watcher(store.Normalize(key), opts)
 
-	// watchCh is sending back events to the caller
+	// resp is sending back events to the caller
 	resp := make(chan *store.WatchResponse)
 	go func() {
 		defer close(resp)
-
 		for {
-			// Check if the watch was stopped by the caller
-			select {
-			case <-stopCh:
+			r, err := watcher.Next(ctx)
+			resp <- s.makeWatchResponse(r, err)
+			if err != nil {
 				return
-			default:
-				r, err := watcher.Next(context.Background())
-				resp <- s.makeWatchResponse(r, err)
-				if err != nil {
-					return
-				}
 			}
 		}
 	}()
@@ -300,8 +292,8 @@ func (s *Etcd) watch(key string, opt *store.WatchOptions, recursive bool, stopCh
 // on errors. Upon creation, the current value will first
 // be sent to the channel. Providing a non-nil stopCh can
 // be used to stop watching.
-func (s *Etcd) Watch(key string, opt *store.WatchOptions, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
-	return s.watch(key, opt, false, stopCh)
+func (s *Etcd) Watch(ctx context.Context, key string, opt *store.WatchOptions) (<-chan *store.WatchResponse, error) {
+	return s.watch(ctx, key, opt, false)
 }
 
 // WatchTree watches for changes on a "directory"
@@ -309,8 +301,8 @@ func (s *Etcd) Watch(key string, opt *store.WatchOptions, stopCh <-chan struct{}
 // on errors. Upon creating a watch, the current childs values
 // will be sent to the channel. Providing a non-nil stopCh can
 // be used to stop watching.
-func (s *Etcd) WatchTree(directory string, opt *store.WatchOptions, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
-	return s.watch(directory, opt, true, stopCh)
+func (s *Etcd) WatchTree(ctx context.Context, directory string, opt *store.WatchOptions) (<-chan *store.WatchResponse, error) {
+	return s.watch(ctx, directory, opt, true)
 }
 
 // AtomicPut puts a value at "key" if the key has not been

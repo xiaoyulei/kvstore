@@ -1,6 +1,7 @@
 package etcdv3
 
 import (
+	"context"
 	"log"
 	"sync"
 
@@ -187,8 +188,8 @@ func (s *Etcd) Exists(key string) (bool, error) {
 // on errors. Upon creation, the current value will first
 // be sent to the channel. Providing a non-nil stopCh can
 // be used to stop watching.
-func (s *Etcd) Watch(key string, opt *store.WatchOptions, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
-	return s.watch(key, false, opt, stopCh)
+func (s *Etcd) Watch(ctx context.Context, key string, opt *store.WatchOptions) (<-chan *store.WatchResponse, error) {
+	return s.watch(ctx, key, false, opt)
 }
 
 // WatchTree watches for changes on a "directory"
@@ -196,11 +197,11 @@ func (s *Etcd) Watch(key string, opt *store.WatchOptions, stopCh <-chan struct{}
 // on errors. Upon creating a watch, the current childs values
 // will be sent to the channel. Providing a non-nil stopCh can
 // be used to stop watching.
-func (s *Etcd) WatchTree(directory string, opt *store.WatchOptions, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
-	return s.watch(directory, true, opt, stopCh)
+func (s *Etcd) WatchTree(ctx context.Context, directory string, opt *store.WatchOptions) (<-chan *store.WatchResponse, error) {
+	return s.watch(ctx, directory, true, opt)
 }
 
-func (s *Etcd) watch(key string, prefix bool, opt *store.WatchOptions, stopCh <-chan struct{}) (<-chan *store.WatchResponse, error) {
+func (s *Etcd) watch(ctx context.Context, key string, prefix bool, opt *store.WatchOptions) (<-chan *store.WatchResponse, error) {
 	var watchChan etcd.WatchChan
 	opts := []etcd.OpOption{etcd.WithPrevKV()}
 	if prefix {
@@ -211,7 +212,7 @@ func (s *Etcd) watch(key string, prefix bool, opt *store.WatchOptions, stopCh <-
 	}
 
 	watcher := etcd.NewWatcher(s.client)
-	watchChan = watcher.Watch(s.client.Ctx(), store.Normalize(key), opts...)
+	watchChan = watcher.Watch(ctx, store.Normalize(key), opts...)
 
 	// resp is sending back events to the caller
 	resp := make(chan *store.WatchResponse)
@@ -221,7 +222,8 @@ func (s *Etcd) watch(key string, prefix bool, opt *store.WatchOptions, stopCh <-
 
 		for {
 			select {
-			case <-stopCh:
+			case <-ctx.Done():
+				resp <- &store.WatchResponse{Error: store.ErrWatchStopped}
 				return
 
 			case ch, ok := <-watchChan:

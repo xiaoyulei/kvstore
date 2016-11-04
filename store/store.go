@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"sync"
@@ -35,6 +36,8 @@ var (
 	ErrPreviousNotSpecified = errors.New("Previous K/V pair should be provided for the Atomic operation")
 	// ErrKeyExists is thrown when the previous value exists in the case of an AtomicPut
 	ErrKeyExists = errors.New("Previous K/V pair exists, cannot complete Atomic operation")
+	// ErrWatchStopped is thrown when Watch stopped
+	ErrWatchStopped = errors.New("Watch was stopped because some error occur or user stop it")
 )
 
 // Config contains the options for a storage client
@@ -80,11 +83,11 @@ type Store interface {
 	Create(key, value string, opts *WriteOptions) error
 
 	// Watch for changes on a key
-	Watch(key string, opt *WatchOptions, stopCh <-chan struct{}) (<-chan *WatchResponse, error)
+	Watch(ctx context.Context, key string, opt *WatchOptions) (<-chan *WatchResponse, error)
 
 	// WatchTree watches for changes on child nodes under
 	// a given directory
-	WatchTree(directory string, opt *WatchOptions, stopCh <-chan struct{}) (<-chan *WatchResponse, error)
+	WatchTree(ctx context.Context, directory string, opt *WatchOptions) (<-chan *WatchResponse, error)
 
 	// NewLock creates a lock for a given key.
 	// The returned Locker is not held and must be acquired

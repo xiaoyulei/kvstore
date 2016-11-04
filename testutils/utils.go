@@ -1,6 +1,7 @@
 package testutils
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -135,11 +136,11 @@ func testWatch(t *testing.T, kv store.Store) {
 	err := kv.Put(key, value, nil)
 	assert.NoError(t, err)
 
-	stopCh := make(chan struct{})
+	ctx, cancle := context.WithCancel(context.Background())
 	defer func() {
-		close(stopCh)
+		cancle()
 	}()
-	events, err := kv.Watch(key, nil, stopCh)
+	events, err := kv.Watch(ctx, key, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, events)
 
@@ -163,6 +164,8 @@ func testWatch(t *testing.T, kv store.Store) {
 
 	// Check for updates
 	eventCount := 1
+
+LOOP:
 	for {
 		select {
 		case event := <-events:
@@ -186,12 +189,30 @@ func testWatch(t *testing.T, kv store.Store) {
 			eventCount++
 			// We received all the events we wanted to check
 			if eventCount >= 4 {
-				return
+				break LOOP
 			}
 		case <-time.After(4 * time.Second):
-			return
+			break LOOP
 		}
 	}
+
+	failMsg := "stop watch fail"
+
+	// stop watch by context
+	ctx1, cancle1 := context.WithCancel(context.Background())
+	events1, err := kv.Watch(ctx1, key, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, events1)
+	cancle1()
+
+	e, ok := <-events1
+	assert.NotNil(t, e)
+	assert.Equal(t, true, ok, failMsg)
+	assert.Error(t, e.Error, failMsg)
+
+	e, ok = <-events1
+	assert.Nil(t, e)
+	assert.Equal(t, false, ok, failMsg)
 }
 
 func testWatchTree(t *testing.T, kv store.Store) {
@@ -215,9 +236,9 @@ func testWatchTree(t *testing.T, kv store.Store) {
 	err = kv.Put(node3, value3, nil)
 	assert.NoError(t, err)
 
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-	events, err := kv.WatchTree(dir, nil, stopCh)
+	ctx, cancle := context.WithCancel(context.Background())
+	defer cancle()
+	events, err := kv.WatchTree(ctx, dir, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, events)
 
