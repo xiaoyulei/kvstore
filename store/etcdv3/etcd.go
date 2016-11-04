@@ -223,7 +223,7 @@ func (s *Etcd) watch(ctx context.Context, key string, prefix bool, opt *store.Wa
 		for {
 			select {
 			case <-ctx.Done():
-				resp <- &store.WatchResponse{Error: store.ErrWatchStopped}
+				resp <- &store.WatchResponse{Error: ctx.Err()}
 				return
 
 			case ch, ok := <-watchChan:
