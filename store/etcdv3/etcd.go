@@ -217,20 +217,25 @@ func (s *Etcd) watch(ctx context.Context, key string, prefix bool, opt *store.Wa
 	// resp is sending back events to the caller
 	resp := make(chan *store.WatchResponse)
 	go func() {
-		defer close(resp)
-		defer watcher.Close()
+		defer func() {
+			close(resp)
+		}()
+		defer func() {
+			watcher.Close()
+		}()
 
 		for {
 			select {
 			case <-ctx.Done():
-				resp <- &store.WatchResponse{Error: ctx.Err()}
+				resp <- s.makeWatchResponse(nil, ctx.Err())
 				return
 
 			case ch, ok := <-watchChan:
 				if !ok {
+					resp <- s.makeWatchResponse(nil, store.ErrWatchFail)
 					return
 				}
-				resp <- s.makeWatchResponse(ch)
+				resp <- s.makeWatchResponse(&ch, nil)
 			}
 		}
 	}()
@@ -238,7 +243,11 @@ func (s *Etcd) watch(ctx context.Context, key string, prefix bool, opt *store.Wa
 	return resp, nil
 }
 
-func (s *Etcd) makeWatchResponse(resp etcd.WatchResponse) *store.WatchResponse {
+func (s *Etcd) makeWatchResponse(resp *etcd.WatchResponse, err error) *store.WatchResponse {
+	if err != nil {
+		return &store.WatchResponse{Error: err}
+	}
+
 	for _, event := range resp.Events {
 		switch event.Type {
 		case mvccpb.PUT:
@@ -272,9 +281,6 @@ func (s *Etcd) makeWatchResponse(resp etcd.WatchResponse) *store.WatchResponse {
 				},
 				Node: nil,
 			}
-		default:
-			log.Fatalf("Unexpected event type %v\n", event.Type)
-			return nil
 		}
 	}
 	return nil

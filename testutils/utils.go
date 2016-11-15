@@ -129,6 +129,8 @@ func testPutGetDeleteExistsUpdateCreate(t *testing.T, kv store.Store) {
 
 func testWatch(t *testing.T, kv store.Store) {
 	key := "/testWatch"
+	key1 := "/testWatch_1"
+
 	value := "world"
 	newValue := "world!"
 
@@ -200,7 +202,7 @@ LOOP:
 
 	// stop watch by context
 	ctx1, cancle1 := context.WithCancel(context.Background())
-	events1, err := kv.Watch(ctx1, key, nil)
+	events1, err := kv.Watch(ctx1, key1, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, events1)
 	cancle1()
@@ -356,6 +358,10 @@ func testAtomicDelete(t *testing.T, kv store.Store) {
 	// AtomicDelete should fail
 	pair.Index = 6744
 	err = kv.AtomicDelete(key, pair)
+	assert.Error(t, err)
+
+	// AtomicDelete should fail
+	err = kv.AtomicDelete(key, nil)
 	assert.Error(t, err)
 
 	// AtomicDelete should succeed
