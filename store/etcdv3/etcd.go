@@ -1,9 +1,9 @@
 package etcdv3
 
 import (
-	"context"
 	"log"
-	"sync"
+
+	"golang.org/x/net/context"
 
 	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
@@ -16,6 +16,10 @@ import (
 // Store interface
 type Etcd struct {
 	client *etcd.Client
+}
+
+type etcdLock struct {
+	mu *concurrency.Mutex
 }
 
 // Register registers etcd to kvstore
@@ -377,14 +381,14 @@ func (s *Etcd) DeleteTree(directory string) error {
 // NewLock creates a lock for a given key.
 // The returned Locker is not held and must be acquired
 // with `.Lock`. The Value is optional.
-func (s *Etcd) NewLock(key string, opt *store.LockOptions) sync.Locker {
+func (s *Etcd) NewLock(key string, opt *store.LockOptions) store.Locker {
 	var session *concurrency.Session
 	if opt != nil {
 		session, _ = concurrency.NewSession(s.client, concurrency.WithTTL(int(opt.TTL.Seconds())))
 	} else {
 		session, _ = concurrency.NewSession(s.client)
 	}
-	return concurrency.NewLocker(session, store.Normalize(key))
+	return concurrency.NewMutex(session, key)
 }
 
 // Close closes the client connection

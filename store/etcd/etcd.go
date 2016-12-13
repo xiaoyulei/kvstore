@@ -1,13 +1,13 @@
 package etcd
 
 import (
-	"context"
 	"crypto/tls"
 	"log"
 	"net"
 	"net/http"
-	"sync"
 	"time"
+
+	"golang.org/x/net/context"
 
 	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
@@ -418,7 +418,7 @@ func (s *Etcd) DeleteTree(directory string) error {
 
 // NewLock returns a handle to a lock struct which can
 // be used to provide mutual exclusion on a key
-func (s *Etcd) NewLock(key string, options *store.LockOptions) sync.Locker {
+func (s *Etcd) NewLock(key string, options *store.LockOptions) store.Locker {
 	var value string
 	ttl := defaultLockTTL
 	renewCh := make(chan struct{})
@@ -447,7 +447,7 @@ func (s *Etcd) NewLock(key string, options *store.LockOptions) sync.Locker {
 // Lock attempts to acquire the lock and blocks while
 // doing so. It returns a channel that is closed if our
 // lock is lost or if an error occurs
-func (l *etcdLock) Lock() {
+func (l *etcdLock) Lock(ctx context.Context) error {
 	// Lock holder channel
 	lockHeld := make(chan struct{})
 	stopLocking := l.stopRenew
@@ -458,11 +458,11 @@ func (l *etcdLock) Lock() {
 
 	for {
 		setOpts.PrevExist = etcd.PrevNoExist
-		resp, err := l.client.Set(context.Background(), l.key, l.value, setOpts)
+		resp, err := l.client.Set(ctx, l.key, l.value, setOpts)
 		if err != nil {
 			if etcdError, ok := err.(etcd.Error); ok {
 				if etcdError.Code != etcd.ErrorCodeNodeExist {
-					log.Fatal(err)
+					return err
 				}
 				setOpts.PrevIndex = ^uint64(0)
 			}
@@ -471,7 +471,7 @@ func (l *etcdLock) Lock() {
 		}
 
 		setOpts.PrevExist = etcd.PrevExist
-		l.last, err = l.client.Set(context.Background(), l.key, l.value, setOpts)
+		l.last, err = l.client.Set(ctx, l.key, l.value, setOpts)
 		if err == nil {
 			// Leader section
 			l.stopLock = stopLocking
@@ -481,7 +481,7 @@ func (l *etcdLock) Lock() {
 			// If this is a legitimate error, return
 			if etcdError, ok := err.(etcd.Error); ok {
 				if etcdError.Code != etcd.ErrorCodeTestFailed {
-					log.Fatal(err)
+					return err
 				}
 			}
 
@@ -498,13 +498,15 @@ func (l *etcdLock) Lock() {
 			case <-free:
 				break
 			case err := <-errorCh:
-				log.Fatal(err)
+				return err
 			}
 
 			// Delete or Expire event occurred
 			// Retry
 		}
 	}
+
+	return nil
 }
 
 // Hold the lock as long as we can
@@ -554,19 +556,22 @@ func (l *etcdLock) waitLock(key string, errorCh chan error, stopWatchCh chan boo
 
 // Unlock the "key". Calling unlock while
 // not holding the lock will throw an error
-func (l *etcdLock) Unlock() {
+func (l *etcdLock) Unlock(ctx context.Context) error {
 	if l.stopLock != nil {
 		l.stopLock <- struct{}{}
 	}
+
 	if l.last != nil {
 		delOpts := &etcd.DeleteOptions{
 			PrevIndex: l.last.Node.ModifiedIndex,
 		}
-		_, err := l.client.Delete(context.Background(), l.key, delOpts)
+		_, err := l.client.Delete(ctx, l.key, delOpts)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 	}
+
+	return nil
 }
 
 // Close closes the client connection

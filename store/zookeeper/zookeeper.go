@@ -1,11 +1,11 @@
 package zookeeper
 
 import (
-	"context"
-	"log"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/net/context"
 
 	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
@@ -455,7 +455,7 @@ func (s *Zookeeper) AtomicDelete(key string, previous *store.KVPair) error {
 
 // NewLock returns a handle to a lock struct which can
 // be used to provide mutual exclusion on a key
-func (s *Zookeeper) NewLock(key string, options *store.LockOptions) sync.Locker {
+func (s *Zookeeper) NewLock(key string, options *store.LockOptions) store.Locker {
 	fkey := store.Normalize(key)
 	value := ""
 
@@ -475,7 +475,7 @@ func (s *Zookeeper) NewLock(key string, options *store.LockOptions) sync.Locker 
 // Lock attempts to acquire the lock and blocks while
 // doing so. It returns a channel that is closed if our
 // lock is lost or if an error occurs
-func (l *zookeeperLock) Lock() {
+func (l *zookeeperLock) Lock(ctx context.Context) error {
 	err := l.lock.Lock()
 	if err == nil {
 		// We hold the lock, we can set our value
@@ -483,18 +483,13 @@ func (l *zookeeperLock) Lock() {
 		// (problematic for leader election)
 		_, err = l.client.Set(l.key, []byte(l.value), -1)
 	}
-
-	if err != nil {
-		log.Fatal(err)
-	}
+	return err
 }
 
 // Unlock the "key". Calling unlock while
 // not holding the lock will throw an error
-func (l *zookeeperLock) Unlock() {
-	if err := l.lock.Unlock(); err != nil {
-		log.Fatal(err)
-	}
+func (l *zookeeperLock) Unlock(ctx context.Context) error {
+	return l.lock.Unlock()
 }
 
 // Close closes the client connection
