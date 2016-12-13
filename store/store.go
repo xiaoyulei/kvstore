@@ -1,11 +1,11 @@
 package store
 
 import (
-	"context"
 	"crypto/tls"
 	"errors"
-	"sync"
 	"time"
+
+	"golang.org/x/net/context"
 )
 
 const (
@@ -38,6 +38,12 @@ var (
 	ErrKeyExists = errors.New("Previous K/V pair exists, cannot complete Atomic operation")
 	// ErrWatchFail is thrown when the watch fail or response channel closed
 	ErrWatchFail = errors.New("Some error occurred when watch or response channel was closed")
+)
+
+// ActionXXX is the action definition of request.
+const (
+	ActionPut    = "PUT"
+	ActionDelete = "DELETE"
 )
 
 // Config contains the options for a storage client
@@ -92,7 +98,7 @@ type Store interface {
 	// NewLock creates a lock for a given key.
 	// The returned Locker is not held and must be acquired
 	// with `.Lock`. The Value is optional.
-	NewLock(key string, opt *LockOptions) sync.Locker
+	NewLock(key string, opt *LockOptions) Locker
 
 	// List the content of a given prefix
 	List(directory string) ([]*KVPair, error)
@@ -125,11 +131,11 @@ type LockOptions struct {
 	RenewLock chan struct{} // Optional, chan used to control and stop the session ttl renewal for the lock
 }
 
-// ActionXXX is the action definition of request.
-const (
-	ActionPut    = "PUT"
-	ActionDelete = "DELETE"
-)
+// Locker provides lock mechanism
+type Locker interface {
+	Lock(ctx context.Context) error
+	Unlock(ctx context.Context) error
+}
 
 // WatchResponse will be returned when watch event happen.
 type WatchResponse struct {

@@ -1,10 +1,11 @@
 package testutils
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
+
+	"golang.org/x/net/context"
 
 	"github.com/YuleiXiao/kvstore/store"
 	"github.com/stretchr/testify/assert"
@@ -383,7 +384,7 @@ func testLockUnlock(t *testing.T, kv store.Store) {
 	assert.NotNil(t, lock)
 
 	// Lock should successfully succeed or block
-	lock.Lock()
+	lock.Lock(context.TODO())
 
 	// Get should work
 	pair, err := kv.Get(key)
@@ -395,10 +396,10 @@ func testLockUnlock(t *testing.T, kv store.Store) {
 	assert.NotEqual(t, pair.Index, 0)
 
 	// Unlock should succeed
-	lock.Unlock()
+	lock.Unlock(context.TODO())
 
 	// Lock should succeed again
-	lock.Lock()
+	lock.Lock(context.TODO())
 
 	// Get should work
 	pair, err = kv.Get(key)
@@ -409,7 +410,7 @@ func testLockUnlock(t *testing.T, kv store.Store) {
 	assert.Equal(t, pair.Value, value)
 	assert.NotEqual(t, pair.Index, 0)
 
-	lock.Unlock()
+	lock.Unlock(context.TODO())
 	assert.NoError(t, err)
 }
 
@@ -420,36 +421,47 @@ func testLockUnlockV3(t *testing.T, kv store.Store) {
 	lock := kv.NewLock(key, nil)
 	assert.NotNil(t, lock)
 
-	// Lock should successfully succeed or block
-	lock.Lock()
-
-	// Get should work
-	pairs, err := kv.List(key)
+	// Lock should successfully succeed
+	err := lock.Lock(context.TODO())
 	assert.NoError(t, err)
-	if assert.NotNil(t, pairs) {
-		if assert.Equal(t, len(pairs), 1) {
-			assert.NotNil(t, pairs[0].Value)
-			assert.NotEqual(t, pairs[0].Index, 0)
-		}
-	}
 
 	// Unlock should succeed
-	lock.Unlock()
-
-	// Lock should succeed again
-	lock.Lock()
-
-	// Get should work
-	pairs, err = kv.List(key)
+	err = lock.Unlock(context.TODO())
 	assert.NoError(t, err)
-	if assert.NotNil(t, pairs) {
-		if assert.Equal(t, len(pairs), 1) {
-			assert.NotNil(t, pairs[0].Value)
-			assert.NotEqual(t, pairs[0].Index, 0)
-		}
-	}
 
-	lock.Unlock()
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*3)
+	// Lock should succeed again
+	err = lock.Lock(ctx)
+	assert.NoError(t, err)
+
+	// Lock should succeed after 3s timeout
+	<-time.After(time.Second * 3)
+	err = lock.Lock(context.TODO())
+	assert.NoError(t, err)
+
+	unlockChan := make(chan struct{})
+	notifyChan := make(chan struct{})
+	go func() {
+		unlockChan <- struct{}{}
+	}()
+
+	go func() {
+		// Lock should block
+		lockNew := kv.NewLock(key, nil)
+		assert.NotNil(t, lockNew)
+		lockNew.Lock(context.TODO())
+		if _, ok := <-unlockChan; !ok {
+			assert.FailNow(t, "should not get lock", "")
+		}
+		close(notifyChan)
+	}()
+
+	time.Sleep(time.Second)
+	err = lock.Unlock(context.TODO())
+	assert.NoError(t, err)
+	time.Sleep(time.Second)
+	<-notifyChan
+	close(unlockChan)
 }
 
 func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
@@ -466,7 +478,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	})
 
 	// Lock should successfully succeed
-	lock.Lock()
+	lock.Lock(context.TODO())
 
 	// Get should work
 	pair, err := otherConn.Get(key)
@@ -495,7 +507,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	// Lock should block, the session on the lock
 	// is still active and renewed periodically
 	go func(<-chan struct{}) {
-		lockNew.Lock()
+		lockNew.Lock(context.TODO())
 		pair, err = kv.Get(key)
 		assert.NoError(t, err)
 		if assert.NotNil(t, pair) {
@@ -503,7 +515,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 		}
 		assert.Equal(t, pair.Value, value)
 		assert.NotEqual(t, pair.Index, 0)
-		lockNew.Unlock()
+		lockNew.Unlock(context.TODO())
 		done <- struct{}{}
 	}(done)
 
@@ -512,7 +524,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 		t.Fatal("Lock succeeded on a key that is supposed to be locked by another client")
 	case <-time.After(4 * time.Second):
 		// Stop requesting the lock as we are blocked as expected
-		lock.Unlock()
+		lock.Unlock(context.TODO())
 		break
 	}
 
@@ -523,7 +535,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 
 	// Lock should now succeed for the other client
 	go func(<-chan struct{}) {
-		lock.Lock()
+		lock.Lock(context.TODO())
 		locked <- struct{}{}
 	}(locked)
 
@@ -543,7 +555,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	assert.Equal(t, pair.Value, valueNew)
 	assert.NotEqual(t, pair.Index, 0)
 
-	lock.Unlock()
+	lock.Unlock(context.TODO())
 }
 
 func testLockTTLV3(t *testing.T, kv store.Store, otherConn store.Store) {
@@ -554,7 +566,7 @@ func testLockTTLV3(t *testing.T, kv store.Store, otherConn store.Store) {
 	assert.NotNil(t, lock)
 
 	// Lock should successfully succeed
-	lock.Lock()
+	lock.Lock(context.TODO())
 
 	// Create a new lock with another connection
 	lock = kv.NewLock(key, &store.LockOptions{TTL: 3 * time.Second})
@@ -565,7 +577,7 @@ func testLockTTLV3(t *testing.T, kv store.Store, otherConn store.Store) {
 	// Lock should block, the session on the lock
 	// is still active and renewed periodically
 	go func(<-chan struct{}) {
-		lock.Lock()
+		lock.Lock(context.TODO())
 		done <- struct{}{}
 	}(done)
 
@@ -585,7 +597,7 @@ func testLockTTLV3(t *testing.T, kv store.Store, otherConn store.Store) {
 
 	// Lock should now succeed for the other client
 	go func(<-chan struct{}) {
-		lock.Lock()
+		lock.Lock(context.TODO())
 		locked <- struct{}{}
 	}(locked)
 
@@ -596,7 +608,7 @@ func testLockTTLV3(t *testing.T, kv store.Store, otherConn store.Store) {
 		t.Fatal("Unable to take the lock, timed out")
 	}
 
-	lock.Unlock()
+	lock.Unlock(context.TODO())
 }
 
 func testPutTTL(t *testing.T, kv store.Store, otherConn store.Store) {
