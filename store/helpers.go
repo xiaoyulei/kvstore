@@ -9,6 +9,8 @@ func CreateEndpoints(addrs []string, scheme string) (entries []string) {
 	for _, addr := range addrs {
 		if !strings.Contains(addr, "://") {
 			entries = append(entries, scheme+"://"+addr)
+		} else {
+			entries = append(entries, addr)
 		}
 	}
 	return entries
