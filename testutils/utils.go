@@ -495,7 +495,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	value = "foobar"
 
 	// Create a new lock with another connection
-	lockNew := kv.NewLock(
+	lockNew := otherConn.NewLock(
 		key,
 		&store.LockOptions{
 			Value: value,
@@ -520,7 +520,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	}(done)
 
 	select {
-	case _ = <-done:
+	case <-done:
 		t.Fatal("Lock succeeded on a key that is supposed to be locked by another client")
 	case <-time.After(4 * time.Second):
 		// Stop requesting the lock as we are blocked as expected
@@ -528,8 +528,6 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 		break
 	}
 
-	// Let the session on the lock expire
-	time.Sleep(3 * time.Second)
 	locked := make(chan struct{})
 	valueNew := "bar"
 
@@ -540,7 +538,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	}(locked)
 
 	select {
-	case _ = <-locked:
+	case <-locked:
 		break
 	case <-time.After(4 * time.Second):
 		t.Fatal("Unable to take the lock, timed out")
@@ -562,27 +560,27 @@ func testLockTTLV3(t *testing.T, kv store.Store, otherConn store.Store) {
 	key := "testLockTTL"
 
 	// We should be able to create a new lock on key
-	lock := otherConn.NewLock(key, &store.LockOptions{TTL: 2 * time.Second})
-	assert.NotNil(t, lock)
+	lock1 := otherConn.NewLock(key, &store.LockOptions{TTL: 2 * time.Second})
+	assert.NotNil(t, lock1)
 
 	// Lock should successfully succeed
-	lock.Lock(context.TODO())
+	lock1.Lock(context.TODO())
 
 	// Create a new lock with another connection
-	lock = kv.NewLock(key, &store.LockOptions{TTL: 3 * time.Second})
-	assert.NotNil(t, lock)
+	lock2 := otherConn.NewLock(key, &store.LockOptions{TTL: 3 * time.Second})
+	assert.NotNil(t, lock2)
 
 	done := make(chan struct{})
 
-	// Lock should block, the session on the lock
+	// lock2 should block, the session on the lock
 	// is still active and renewed periodically
 	go func(<-chan struct{}) {
-		lock.Lock(context.TODO())
+		lock2.Lock(context.TODO())
 		done <- struct{}{}
 	}(done)
 
 	select {
-	case _ = <-done:
+	case <-done:
 		t.Fatal("Lock succeeded on a key that is supposed to be locked by another client")
 	case <-time.After(4 * time.Second):
 		// Stop requesting the lock as we are blocked as expected
@@ -591,24 +589,22 @@ func testLockTTLV3(t *testing.T, kv store.Store, otherConn store.Store) {
 		break
 	}
 
-	// Let the session on the lock expire
-	time.Sleep(3 * time.Second)
 	locked := make(chan struct{})
 
 	// Lock should now succeed for the other client
 	go func(<-chan struct{}) {
-		lock.Lock(context.TODO())
+		lock1.Lock(context.TODO())
 		locked <- struct{}{}
 	}(locked)
 
 	select {
-	case _ = <-locked:
+	case <-locked:
 		break
 	case <-time.After(4 * time.Second):
 		t.Fatal("Unable to take the lock, timed out")
 	}
 
-	lock.Unlock(context.TODO())
+	lock1.Unlock(context.TODO())
 }
 
 func testPutTTL(t *testing.T, kv store.Store, otherConn store.Store) {

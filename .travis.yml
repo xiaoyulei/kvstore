@@ -1,7 +1,7 @@
 language: go
 
 go:
-  - 1.7.3
+  - 1.7.5
 
 # let us have speedy Docker-based Travis workers
 sudo: false
@@ -15,7 +15,7 @@ install:
   - go get github.com/golang/lint/golint
   - go get github.com/mattn/goveralls
   - go get github.com/GeertJohan/fgt
-  - cd $GOPATH/src/google.golang.org/grpc;git checkout v1.0.4;cd -
+#  - cd $GOPATH/src/google.golang.org/grpc;git checkout v1.0.4;cd -
 
 script:
   - $GOPATH/src/github.com/coreos/etcd/build
