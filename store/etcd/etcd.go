@@ -19,7 +19,7 @@ var (
 		"create":           store.ActionPut,
 		"set":              store.ActionPut,
 		"update":           store.ActionPut,
-		"delete":           store.ActionPut,
+		"delete":           store.ActionDelete,
 		"compareAndSwap":   store.ActionPut,
 		"compareAndDelete": store.ActionDelete,
 		"expire":           store.ActionDelete,
