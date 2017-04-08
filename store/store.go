@@ -71,22 +71,22 @@ type ClientTLSConfig struct {
 // backend for kvstore
 type Store interface {
 	// Put a value at the specified key
-	Put(key, value string, options *WriteOptions) error
+	Put(ctx context.Context, key, value string, options *WriteOptions) error
 
 	// Get a value given its key
-	Get(key string) (*KVPair, error)
+	Get(ctx context.Context, key string) (*KVPair, error)
 
 	// Delete the value at the specified key
-	Delete(key string) error
+	Delete(ctx context.Context, key string) error
 
 	// Verify if a Key exists in the store
-	Exists(key string) (bool, error)
+	Exists(ctx context.Context, key string) (bool, error)
 
 	// Update is an alias for Put with key exist
-	Update(key, value string, opts *WriteOptions) error
+	Update(ctx context.Context, key, value string, opts *WriteOptions) error
 
 	// Create is an alias for Put with key not exist
-	Create(key, value string, opts *WriteOptions) error
+	Create(ctx context.Context, key, value string, opts *WriteOptions) error
 
 	// Watch for changes on a key
 	Watch(ctx context.Context, key string, opt *WatchOptions) (<-chan *WatchResponse, error)
@@ -101,17 +101,17 @@ type Store interface {
 	NewLock(key string, opt *LockOptions) Locker
 
 	// List the content of a given prefix
-	List(directory string) ([]*KVPair, error)
+	List(ctx context.Context, directory string) ([]*KVPair, error)
 
 	// DeleteTree deletes a range of keys under a given directory
-	DeleteTree(directory string) error
+	DeleteTree(ctx context.Context, directory string) error
 
 	// Atomic CAS operation on a single value.
 	// Pass previous = nil to create a new key.
-	AtomicPut(key, value string, previous *KVPair, options *WriteOptions) error
+	AtomicPut(ctx context.Context, key, value string, previous *KVPair, options *WriteOptions) error
 
 	// Atomic delete of a single value
-	AtomicDelete(key string, previous *KVPair) error
+	AtomicDelete(ctx context.Context, key string, previous *KVPair) error
 
 	// Close the store connection
 	Close()
