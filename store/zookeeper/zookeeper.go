@@ -72,7 +72,7 @@ func (s *Zookeeper) setTimeout(time time.Duration) {
 
 // Get the value at "key", returns the last modified index
 // to use in conjunction to Atomic calls
-func (s *Zookeeper) Get(key string) (pair *store.KVPair, err error) {
+func (s *Zookeeper) Get(ctx context.Context, key string) (pair *store.KVPair, err error) {
 	fkey := store.Normalize(key)
 	resp, meta, err := s.client.Get(fkey)
 	if err != nil {
@@ -85,7 +85,7 @@ func (s *Zookeeper) Get(key string) (pair *store.KVPair, err error) {
 	// FIXME handle very rare cases where Get returns the
 	// SOH control character instead of the actual value
 	if string(resp) == SOH {
-		return s.Get(fkey)
+		return s.Get(ctx, fkey)
 	}
 
 	pair = &store.KVPair{
@@ -123,9 +123,9 @@ func (s *Zookeeper) createFullPath(path []string, value string, ephemeral bool) 
 }
 
 // Put a value at "key"
-func (s *Zookeeper) Put(key, value string, opts *store.WriteOptions) error {
+func (s *Zookeeper) Put(ctx context.Context, key, value string, opts *store.WriteOptions) error {
 	fkey := store.Normalize(key)
-	exists, err := s.Exists(fkey)
+	exists, err := s.Exists(ctx, fkey)
 	if err != nil {
 		return err
 	}
@@ -143,7 +143,7 @@ func (s *Zookeeper) Put(key, value string, opts *store.WriteOptions) error {
 }
 
 // Create is an alias for Put with key not exist
-func (s *Zookeeper) Create(key, value string, opts *store.WriteOptions) error {
+func (s *Zookeeper) Create(ctx context.Context, key, value string, opts *store.WriteOptions) error {
 	fkey := store.Normalize(key)
 	if opts != nil && opts.TTL > 0 {
 		return s.createFullPath(store.SplitKey(fkey), value, true)
@@ -152,9 +152,9 @@ func (s *Zookeeper) Create(key, value string, opts *store.WriteOptions) error {
 }
 
 // Update is an alias for Put with key exist
-func (s *Zookeeper) Update(key, value string, opts *store.WriteOptions) error {
+func (s *Zookeeper) Update(ctx context.Context, key, value string, opts *store.WriteOptions) error {
 	fkey := store.Normalize(key)
-	exists, err := s.Exists(fkey)
+	exists, err := s.Exists(ctx, fkey)
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (s *Zookeeper) Update(key, value string, opts *store.WriteOptions) error {
 }
 
 // Delete a value at "key"
-func (s *Zookeeper) Delete(key string) error {
+func (s *Zookeeper) Delete(ctx context.Context, key string) error {
 	err := s.client.Delete(store.Normalize(key), -1)
 	if err == zk.ErrNoNode {
 		return store.ErrKeyNotFound
@@ -176,7 +176,7 @@ func (s *Zookeeper) Delete(key string) error {
 }
 
 // Exists checks if the key exists inside the store
-func (s *Zookeeper) Exists(key string) (bool, error) {
+func (s *Zookeeper) Exists(ctx context.Context, key string) (bool, error) {
 	exists, _, err := s.client.Exists(store.Normalize(key))
 	if err != nil {
 		return false, err
@@ -206,7 +206,7 @@ func (s *Zookeeper) Watch(ctx context.Context, key string, opt *store.WatchOptio
 			select {
 			case e := <-eventCh:
 				if e.Type == zk.EventNodeDataChanged {
-					if entry, err := s.Get(fkey); err == nil {
+					if entry, err := s.Get(ctx, fkey); err == nil {
 						resp <- &store.WatchResponse{
 							Action: store.ActionPut,
 							Node:   entry,
@@ -261,7 +261,7 @@ func (s *Zookeeper) WatchTree(ctx context.Context, dir string, opt *store.WatchO
 			select {
 			case e := <-eventCh:
 				if e.Type == zk.EventNodeChildrenChanged {
-					pairs, err := s.List(fkey)
+					pairs, err := s.List(ctx, fkey)
 					respList := s.makeWatchResponse(data, meta, pairs, err)
 					for _, r := range respList {
 						resp <- r
@@ -324,7 +324,7 @@ func (s *Zookeeper) makeWatchResponse(preNodes []string, stat *zk.Stat, paris []
 }
 
 // List child nodes of a given directory
-func (s *Zookeeper) List(directory string) ([]*store.KVPair, error) {
+func (s *Zookeeper) List(ctx context.Context, directory string) ([]*store.KVPair, error) {
 	fkey := store.Normalize(directory)
 	keys, stat, err := s.client.Children(fkey)
 	if err != nil {
@@ -338,11 +338,11 @@ func (s *Zookeeper) List(directory string) ([]*store.KVPair, error) {
 
 	// FIXME Costly Get request for each child key..
 	for _, key := range keys {
-		pair, err := s.Get(strings.TrimSuffix(fkey, "/") + store.Normalize(key))
+		pair, err := s.Get(ctx, strings.TrimSuffix(fkey, "/")+store.Normalize(key))
 		if err != nil {
 			// If node is not found: List is out of date, retry
 			if err == store.ErrKeyNotFound {
-				return s.List(fkey)
+				return s.List(ctx, fkey)
 			}
 			return nil, err
 		}
@@ -358,9 +358,9 @@ func (s *Zookeeper) List(directory string) ([]*store.KVPair, error) {
 }
 
 // DeleteTree deletes a range of keys under a given directory
-func (s *Zookeeper) DeleteTree(directory string) error {
+func (s *Zookeeper) DeleteTree(ctx context.Context, directory string) error {
 	fkey := store.Normalize(directory)
-	pairs, err := s.List(fkey)
+	pairs, err := s.List(ctx, fkey)
 	if err != nil {
 		return err
 	}
@@ -379,7 +379,7 @@ func (s *Zookeeper) DeleteTree(directory string) error {
 
 // AtomicPut put a value at "key" if the key has not been
 // modified in the meantime, throws an error if this is the case
-func (s *Zookeeper) AtomicPut(key, value string, previous *store.KVPair, _ *store.WriteOptions) error {
+func (s *Zookeeper) AtomicPut(ctx context.Context, key, value string, previous *store.KVPair, _ *store.WriteOptions) error {
 	fkey := store.Normalize(key)
 	if previous != nil {
 		_, err := s.client.Set(fkey, []byte(value), int32(previous.Index))
@@ -432,7 +432,7 @@ func (s *Zookeeper) AtomicPut(key, value string, previous *store.KVPair, _ *stor
 // AtomicDelete deletes a value at "key" if the key
 // has not been modified in the meantime, throws an
 // error if this is the case
-func (s *Zookeeper) AtomicDelete(key string, previous *store.KVPair) error {
+func (s *Zookeeper) AtomicDelete(ctx context.Context, key string, previous *store.KVPair) error {
 	if previous == nil {
 		return store.ErrPreviousNotSpecified
 	}

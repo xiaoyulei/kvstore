@@ -66,7 +66,7 @@ func RunTestTTL(t *testing.T, kv store.Store, backup store.Store) {
 
 func testPutGetDeleteExistsUpdateCreate(t *testing.T, kv store.Store) {
 	// Get a not exist key should return ErrKeyNotFound
-	pair, err := kv.Get("testPutGetDeleteUpdateCreate_not_exist_key")
+	pair, err := kv.Get(context.TODO(), "testPutGetDeleteUpdateCreate_not_exist_key")
 	assert.Equal(t, store.ErrKeyNotFound, err)
 
 	value := "bar"
@@ -79,19 +79,19 @@ func testPutGetDeleteExistsUpdateCreate(t *testing.T, kv store.Store) {
 		failMsg := fmt.Sprintf("Fail key %s", key)
 
 		// Update no exist key
-		err = kv.Update(key, value, nil)
+		err = kv.Update(context.TODO(), key, value, nil)
 		assert.Error(t, err, failMsg)
 
 		// Create no exist key
-		err = kv.Create(key, value, nil)
+		err = kv.Create(context.TODO(), key, value, nil)
 		assert.NoError(t, err, failMsg)
 
 		// Put the key
-		err = kv.Put(key, value, nil)
+		err = kv.Put(context.TODO(), key, value, nil)
 		assert.NoError(t, err, failMsg)
 
 		// Get should return the value and an incremented index
-		pair, err = kv.Get(key)
+		pair, err = kv.Get(context.TODO(), key)
 		assert.NoError(t, err, failMsg)
 		if assert.NotNil(t, pair, failMsg) {
 			assert.NotNil(t, pair.Value, failMsg)
@@ -100,29 +100,29 @@ func testPutGetDeleteExistsUpdateCreate(t *testing.T, kv store.Store) {
 		assert.NotEqual(t, pair.Index, 0, failMsg)
 
 		// Exists should return true
-		exists, err := kv.Exists(key)
+		exists, err := kv.Exists(context.TODO(), key)
 		assert.NoError(t, err, failMsg)
 		assert.True(t, exists, failMsg)
 
 		// Update exist key
-		err = kv.Update(key, value, nil)
+		err = kv.Update(context.TODO(), key, value, nil)
 		assert.NoError(t, err, failMsg)
 
 		// Create exist key
-		err = kv.Create(key, value, nil)
+		err = kv.Create(context.TODO(), key, value, nil)
 		assert.Error(t, err, failMsg)
 
 		// Delete the key
-		err = kv.Delete(key)
+		err = kv.Delete(context.TODO(), key)
 		assert.NoError(t, err, failMsg)
 
 		// Get should fail
-		pair, err = kv.Get(key)
+		pair, err = kv.Get(context.TODO(), key)
 		assert.Error(t, err, failMsg)
 		assert.Nil(t, pair, failMsg)
 
 		// Exists should return false
-		exists, err = kv.Exists(key)
+		exists, err = kv.Exists(context.TODO(), key)
 		assert.NoError(t, err, failMsg)
 		assert.False(t, exists, failMsg)
 	}
@@ -136,7 +136,7 @@ func testWatch(t *testing.T, kv store.Store) {
 	newValue := "world!"
 
 	// Put the key
-	err := kv.Put(key, value, nil)
+	err := kv.Put(context.TODO(), key, value, nil)
 	assert.NoError(t, err)
 
 	ctx, cancle := context.WithCancel(context.Background())
@@ -156,7 +156,7 @@ func testWatch(t *testing.T, kv store.Store) {
 			case <-timeout:
 				return
 			case <-tick:
-				err := kv.Put(key, newValue, nil)
+				err := kv.Put(context.TODO(), key, newValue, nil)
 				if assert.NoError(t, err) {
 					continue
 				}
@@ -230,13 +230,13 @@ func testWatchTree(t *testing.T, kv store.Store) {
 	node3 := "testWatchTree/node3"
 	value3 := "node3"
 
-	err := kv.Put(node1, value1, nil)
+	err := kv.Put(context.TODO(), node1, value1, nil)
 	assert.NoError(t, err)
 
-	err = kv.Put(node2, value2, nil)
+	err = kv.Put(context.TODO(), node2, value2, nil)
 	assert.NoError(t, err)
 
-	err = kv.Put(node3, value3, nil)
+	err = kv.Put(context.TODO(), node3, value3, nil)
 	assert.NoError(t, err)
 
 	ctx, cancle := context.WithCancel(context.Background())
@@ -251,7 +251,7 @@ func testWatchTree(t *testing.T, kv store.Store) {
 		for {
 			select {
 			case <-timeout:
-				err := kv.Delete(node3)
+				err := kv.Delete(context.TODO(), node3)
 				assert.NoError(t, err)
 				return
 			}
@@ -278,11 +278,11 @@ func testAtomicPut(t *testing.T, kv store.Store) {
 	value := "world"
 
 	// Put the key
-	err := kv.Put(key, value, nil)
+	err := kv.Put(context.TODO(), key, value, nil)
 	assert.NoError(t, err)
 
 	// Get should return the value and an incremented index
-	pair, err := kv.Get(key)
+	pair, err := kv.Get(context.TODO(), key)
 	assert.NoError(t, err)
 	if assert.NotNil(t, pair) {
 		assert.NotNil(t, pair.Value)
@@ -291,16 +291,16 @@ func testAtomicPut(t *testing.T, kv store.Store) {
 	assert.NotEqual(t, pair.Index, 0)
 
 	// This CAS should fail: previous exists.
-	err = kv.AtomicPut(key, "WORLD", nil, nil)
+	err = kv.AtomicPut(context.TODO(), key, "WORLD", nil, nil)
 	assert.Error(t, err)
 
 	// This CAS should succeed
-	err = kv.AtomicPut(key, "WORLD", pair, nil)
+	err = kv.AtomicPut(context.TODO(), key, "WORLD", pair, nil)
 	assert.NoError(t, err)
 
 	// This CAS should fail, key exists.
 	pair.Index = 6744
-	err = kv.AtomicPut(key, "WORLDWORLD", pair, nil)
+	err = kv.AtomicPut(context.TODO(), key, "WORLDWORLD", pair, nil)
 	assert.Error(t, err)
 }
 
@@ -311,11 +311,11 @@ func testAtomicPutCreate(t *testing.T, kv store.Store) {
 	value := "putcreate"
 
 	// AtomicPut the key, previous = nil indicates create.
-	err := kv.AtomicPut(key, value, nil, nil)
+	err := kv.AtomicPut(context.TODO(), key, value, nil, nil)
 	assert.NoError(t, err)
 
 	// Get should return the value and an incremented index
-	pair, err := kv.Get(key)
+	pair, err := kv.Get(context.TODO(), key)
 	assert.NoError(t, err)
 	if assert.NotNil(t, pair) {
 		assert.NotNil(t, pair.Value)
@@ -323,17 +323,17 @@ func testAtomicPutCreate(t *testing.T, kv store.Store) {
 	assert.Equal(t, pair.Value, value)
 
 	// Attempting to create again should fail.
-	err = kv.AtomicPut(key, value, nil, nil)
+	err = kv.AtomicPut(context.TODO(), key, value, nil, nil)
 	assert.Error(t, store.ErrKeyExists)
 
 	// This CAS should succeed, since it has the value from Get()
-	err = kv.AtomicPut(key, "PUTCREATE", pair, nil)
+	err = kv.AtomicPut(context.TODO(), key, "PUTCREATE", pair, nil)
 	assert.NoError(t, err)
 }
 
 func testAtomicPutWithSlashSuffixKey(t *testing.T, kv store.Store) {
 	k1 := "testAtomicPutWithSlashSuffixKey/key/"
-	err := kv.AtomicPut(k1, "", nil, nil)
+	err := kv.AtomicPut(context.TODO(), k1, "", nil, nil)
 	assert.Nil(t, err)
 }
 
@@ -342,11 +342,11 @@ func testAtomicDelete(t *testing.T, kv store.Store) {
 	value := "world"
 
 	// Put the key
-	err := kv.Put(key, value, nil)
+	err := kv.Put(context.TODO(), key, value, nil)
 	assert.NoError(t, err)
 
 	// Get should return the value and an incremented index
-	pair, err := kv.Get(key)
+	pair, err := kv.Get(context.TODO(), key)
 	assert.NoError(t, err)
 	if assert.NotNil(t, pair) {
 		assert.NotNil(t, pair.Value)
@@ -358,20 +358,20 @@ func testAtomicDelete(t *testing.T, kv store.Store) {
 
 	// AtomicDelete should fail
 	pair.Index = 6744
-	err = kv.AtomicDelete(key, pair)
+	err = kv.AtomicDelete(context.TODO(), key, pair)
 	assert.Error(t, err)
 
 	// AtomicDelete should fail
-	err = kv.AtomicDelete(key, nil)
+	err = kv.AtomicDelete(context.TODO(), key, nil)
 	assert.Error(t, err)
 
 	// AtomicDelete should succeed
 	pair.Index = tempIndex
-	err = kv.AtomicDelete(key, pair)
+	err = kv.AtomicDelete(context.TODO(), key, pair)
 	assert.NoError(t, err)
 
 	// Delete a non-existent key; should fail
-	err = kv.AtomicDelete(key, pair)
+	err = kv.AtomicDelete(context.TODO(), key, pair)
 	assert.Error(t, store.ErrKeyNotFound)
 }
 
@@ -387,7 +387,7 @@ func testLockUnlock(t *testing.T, kv store.Store) {
 	lock.Lock(context.TODO())
 
 	// Get should work
-	pair, err := kv.Get(key)
+	pair, err := kv.Get(context.TODO(), key)
 	assert.NoError(t, err)
 	if assert.NotNil(t, pair) {
 		assert.NotNil(t, pair.Value)
@@ -402,7 +402,7 @@ func testLockUnlock(t *testing.T, kv store.Store) {
 	lock.Lock(context.TODO())
 
 	// Get should work
-	pair, err = kv.Get(key)
+	pair, err = kv.Get(context.TODO(), key)
 	assert.NoError(t, err)
 	if assert.NotNil(t, pair) {
 		assert.NotNil(t, pair.Value)
@@ -481,7 +481,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	lock.Lock(context.TODO())
 
 	// Get should work
-	pair, err := otherConn.Get(key)
+	pair, err := otherConn.Get(context.TODO(), key)
 	assert.NoError(t, err)
 	if assert.NotNil(t, pair) {
 		assert.NotNil(t, pair.Value)
@@ -508,7 +508,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	// is still active and renewed periodically
 	go func(<-chan struct{}) {
 		lockNew.Lock(context.TODO())
-		pair, err = kv.Get(key)
+		pair, err = kv.Get(context.TODO(), key)
 		assert.NoError(t, err)
 		if assert.NotNil(t, pair) {
 			assert.NotNil(t, pair.Value)
@@ -545,7 +545,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	}
 
 	// Get should work with the new value
-	pair, err = kv.Get(key)
+	pair, err = kv.Get(context.TODO(), key)
 	assert.NoError(t, err)
 	if assert.NotNil(t, pair) {
 		assert.NotNil(t, pair.Value)
@@ -615,20 +615,20 @@ func testPutTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	secondValue := "bar"
 
 	// Put the first key with the Ephemeral flag
-	err := otherConn.Put(firstKey, firstValue, &store.WriteOptions{TTL: 2 * time.Second})
+	err := otherConn.Put(context.TODO(), firstKey, firstValue, &store.WriteOptions{TTL: 2 * time.Second})
 	assert.NoError(t, err)
 
 	// Put a second key with the Ephemeral flag
-	err = otherConn.Put(secondKey, secondValue, &store.WriteOptions{TTL: 2 * time.Second})
+	err = otherConn.Put(context.TODO(), secondKey, secondValue, &store.WriteOptions{TTL: 2 * time.Second})
 	assert.NoError(t, err)
 
 	// Get on firstKey should work
-	pair, err := kv.Get(firstKey)
+	pair, err := kv.Get(context.TODO(), firstKey)
 	assert.NoError(t, err)
 	assert.NotNil(t, pair)
 
 	// Get on secondKey should work
-	pair, err = kv.Get(secondKey)
+	pair, err = kv.Get(context.TODO(), secondKey)
 	assert.NoError(t, err)
 	assert.NotNil(t, pair)
 
@@ -639,12 +639,12 @@ func testPutTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	time.Sleep(3 * time.Second)
 
 	// Get on firstKey shouldn't work
-	pair, err = kv.Get(firstKey)
+	pair, err = kv.Get(context.TODO(), firstKey)
 	assert.Error(t, err)
 	assert.Nil(t, pair)
 
 	// Get on secondKey shouldn't work
-	pair, err = kv.Get(secondKey)
+	pair, err = kv.Get(context.TODO(), secondKey)
 	assert.Error(t, err)
 	assert.Nil(t, pair)
 }
@@ -659,16 +659,16 @@ func testList(t *testing.T, kv store.Store) {
 	secondValue := "second"
 
 	// Put the first key
-	err := kv.Put(firstKey, firstValue, nil)
+	err := kv.Put(context.TODO(), firstKey, firstValue, nil)
 	assert.NoError(t, err)
 
 	// Put the second key
-	err = kv.Put(secondKey, secondValue, nil)
+	err = kv.Put(context.TODO(), secondKey, secondValue, nil)
 	assert.NoError(t, err)
 
 	// List should work and return the two correct values
 	for _, parent := range []string{prefix, prefix + "/"} {
-		pairs, err := kv.List(parent)
+		pairs, err := kv.List(context.TODO(), parent)
 		assert.NoError(t, err)
 		if assert.NotNil(t, pairs) {
 			assert.Equal(t, len(pairs), 2)
@@ -686,7 +686,7 @@ func testList(t *testing.T, kv store.Store) {
 	}
 
 	// List should fail: the key does not exist
-	pairs, err := kv.List("idontexist")
+	pairs, err := kv.List(context.TODO(), "idontexist")
 	assert.Equal(t, store.ErrKeyNotFound, err)
 	assert.Nil(t, pairs)
 }
@@ -701,15 +701,15 @@ func testDeleteTree(t *testing.T, kv store.Store) {
 	secondValue := "second"
 
 	// Put the first key
-	err := kv.Put(firstKey, firstValue, nil)
+	err := kv.Put(context.TODO(), firstKey, firstValue, nil)
 	assert.NoError(t, err)
 
 	// Put the second key
-	err = kv.Put(secondKey, secondValue, nil)
+	err = kv.Put(context.TODO(), secondKey, secondValue, nil)
 	assert.NoError(t, err)
 
 	// Get should work on the first Key
-	pair, err := kv.Get(firstKey)
+	pair, err := kv.Get(context.TODO(), firstKey)
 	assert.NoError(t, err)
 	if assert.NotNil(t, pair) {
 		assert.NotNil(t, pair.Value)
@@ -718,7 +718,7 @@ func testDeleteTree(t *testing.T, kv store.Store) {
 	assert.NotEqual(t, pair.Index, 0)
 
 	// Get should work on the second Key
-	pair, err = kv.Get(secondKey)
+	pair, err = kv.Get(context.TODO(), secondKey)
 	assert.NoError(t, err)
 	if assert.NotNil(t, pair) {
 		assert.NotNil(t, pair.Value)
@@ -727,15 +727,15 @@ func testDeleteTree(t *testing.T, kv store.Store) {
 	assert.NotEqual(t, pair.Index, 0)
 
 	// Delete Values under directory `nodes`
-	err = kv.DeleteTree(prefix)
+	err = kv.DeleteTree(context.TODO(), prefix)
 	assert.NoError(t, err)
 
 	// Get should fail on both keys
-	pair, err = kv.Get(firstKey)
+	pair, err = kv.Get(context.TODO(), firstKey)
 	assert.Error(t, err)
 	assert.Nil(t, pair)
 
-	pair, err = kv.Get(secondKey)
+	pair, err = kv.Get(context.TODO(), secondKey)
 	assert.Error(t, err)
 	assert.Nil(t, pair)
 }
@@ -756,9 +756,9 @@ func RunCleanup(t *testing.T, kv store.Store) {
 		"testList",
 		"testDeleteTree",
 	} {
-		err := kv.DeleteTree(key)
+		err := kv.DeleteTree(context.TODO(), key)
 		assert.True(t, err == nil || err == store.ErrKeyNotFound, fmt.Sprintf("failed to delete tree key %s: %v", key, err))
-		err = kv.Delete(key)
+		err = kv.Delete(context.TODO(), key)
 		assert.True(t, err == nil || err == store.ErrKeyNotFound, fmt.Sprintf("failed to delete key %s: %v", key, err))
 	}
 }

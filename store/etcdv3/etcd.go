@@ -62,8 +62,8 @@ func New(addrs []string, options *store.Config) (store.Store, error) {
 
 // Get the value at "key", returns the last modified
 // index to use in conjunction to Atomic calls
-func (s *Etcd) Get(key string) (pair *store.KVPair, err error) {
-	pairs, err := s.get(key, false)
+func (s *Etcd) Get(ctx context.Context, key string) (pair *store.KVPair, err error) {
+	pairs, err := s.get(ctx, key, false)
 	if err != nil {
 		return nil, err
 	}
@@ -71,14 +71,14 @@ func (s *Etcd) Get(key string) (pair *store.KVPair, err error) {
 	return pairs[0], nil
 }
 
-func (s *Etcd) get(key string, prefix bool) (pairs []*store.KVPair, err error) {
+func (s *Etcd) get(ctx context.Context, key string, prefix bool) (pairs []*store.KVPair, err error) {
 	var resp *etcd.GetResponse
 	var opts []etcd.OpOption
 	if prefix {
 		opts = []etcd.OpOption{etcd.WithPrefix()}
 	}
 
-	resp, err = s.client.Get(s.client.Ctx(), store.Normalize(key), opts...)
+	resp, err = s.client.Get(ctx, store.Normalize(key), opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -100,28 +100,28 @@ func (s *Etcd) get(key string, prefix bool) (pairs []*store.KVPair, err error) {
 }
 
 // Put a value at "key"
-func (s *Etcd) Put(key, value string, opts *store.WriteOptions) error {
+func (s *Etcd) Put(ctx context.Context, key, value string, opts *store.WriteOptions) error {
 	key = store.Normalize(key)
 	if opts != nil {
-		resp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL.Seconds()))
+		resp, err := s.client.Grant(ctx, int64(opts.TTL.Seconds()))
 		if err != nil {
 			log.Fatal(err)
 		}
-		_, err = s.client.Put(s.client.Ctx(), key, value, etcd.WithLease(resp.ID))
+		_, err = s.client.Put(ctx, key, value, etcd.WithLease(resp.ID))
 		return err
 	}
 
-	_, err := s.client.Put(s.client.Ctx(), key, value)
+	_, err := s.client.Put(ctx, key, value)
 	return err
 }
 
 // Update is an alias for Put with key exist
-func (s *Etcd) Update(key, value string, opts *store.WriteOptions) error {
+func (s *Etcd) Update(ctx context.Context, key, value string, opts *store.WriteOptions) error {
 	key = store.Normalize(key)
 
 	req := etcd.OpPut(key, value)
 	if opts != nil {
-		leaseResp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL.Seconds()))
+		leaseResp, err := s.client.Grant(ctx, int64(opts.TTL.Seconds()))
 		if err != nil {
 			return err
 		}
@@ -129,7 +129,7 @@ func (s *Etcd) Update(key, value string, opts *store.WriteOptions) error {
 		req = etcd.OpPut(key, value, etcd.WithLease(leaseResp.ID))
 	}
 
-	txn := s.client.Txn(s.client.Ctx())
+	txn := s.client.Txn(ctx)
 	resp, err := txn.If(etcd.Compare(etcd.CreateRevision(key), ">", 0)).Then(req).Commit()
 	if err != nil {
 		return err
@@ -143,12 +143,12 @@ func (s *Etcd) Update(key, value string, opts *store.WriteOptions) error {
 }
 
 // Create is an alias for Put with key not exist
-func (s *Etcd) Create(key, value string, opts *store.WriteOptions) error {
+func (s *Etcd) Create(ctx context.Context, key, value string, opts *store.WriteOptions) error {
 	key = store.Normalize(key)
 
 	req := etcd.OpPut(key, value)
 	if opts != nil {
-		leaseResp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL.Seconds()))
+		leaseResp, err := s.client.Grant(ctx, int64(opts.TTL.Seconds()))
 		if err != nil {
 			return err
 		}
@@ -156,7 +156,7 @@ func (s *Etcd) Create(key, value string, opts *store.WriteOptions) error {
 		req = etcd.OpPut(key, value, etcd.WithLease(leaseResp.ID))
 	}
 
-	txn := s.client.Txn(s.client.Ctx())
+	txn := s.client.Txn(ctx)
 	resp, err := txn.If(etcd.Compare(etcd.CreateRevision(key), "=", 0)).Then(req).Commit()
 	if err != nil {
 		return err
@@ -170,14 +170,14 @@ func (s *Etcd) Create(key, value string, opts *store.WriteOptions) error {
 }
 
 // Delete a value at "key"
-func (s *Etcd) Delete(key string) error {
-	_, err := s.client.Delete(s.client.Ctx(), store.Normalize(key))
+func (s *Etcd) Delete(ctx context.Context, key string) error {
+	_, err := s.client.Delete(ctx, store.Normalize(key))
 	return err
 }
 
 // Exists checks if the key exists inside the store
-func (s *Etcd) Exists(key string) (bool, error) {
-	_, err := s.Get(key)
+func (s *Etcd) Exists(ctx context.Context, key string) (bool, error) {
+	_, err := s.Get(ctx, key)
 	if err != nil {
 		if err == store.ErrKeyNotFound {
 			return false, nil
@@ -292,12 +292,12 @@ func (s *Etcd) makeWatchResponse(resp *etcd.WatchResponse, err error) *store.Wat
 
 // AtomicPut puts a value at "key" if the key has not been
 // modified in the meantime, throws an error if this is the case
-func (s *Etcd) AtomicPut(key, value string, previous *store.KVPair, opts *store.WriteOptions) error {
+func (s *Etcd) AtomicPut(ctx context.Context, key, value string, previous *store.KVPair, opts *store.WriteOptions) error {
 	key = store.Normalize(key)
 
 	req := etcd.OpPut(key, value)
 	if opts != nil {
-		leaseResp, err := s.client.Grant(s.client.Ctx(), int64(opts.TTL.Seconds()))
+		leaseResp, err := s.client.Grant(ctx, int64(opts.TTL.Seconds()))
 		if err != nil {
 			return err
 		}
@@ -315,7 +315,7 @@ func (s *Etcd) AtomicPut(key, value string, previous *store.KVPair, opts *store.
 		}
 	}
 
-	txn := s.client.Txn(s.client.Ctx())
+	txn := s.client.Txn(ctx)
 	resp, err := txn.If(cmp...).Then(req).Commit()
 	if err != nil {
 		return err
@@ -334,7 +334,7 @@ func (s *Etcd) AtomicPut(key, value string, previous *store.KVPair, opts *store.
 // AtomicDelete deletes a value at "key" if the key
 // has not been modified in the meantime, throws an
 // error if this is the case
-func (s *Etcd) AtomicDelete(key string, previous *store.KVPair) error {
+func (s *Etcd) AtomicDelete(ctx context.Context, key string, previous *store.KVPair) error {
 	key = store.Normalize(key)
 
 	if previous == nil {
@@ -346,7 +346,7 @@ func (s *Etcd) AtomicDelete(key string, previous *store.KVPair) error {
 		cmp = append(cmp, etcd.Compare(etcd.ModRevision(key), "=", int64(previous.Index)))
 	}
 
-	txn := s.client.Txn(s.client.Ctx())
+	txn := s.client.Txn(ctx)
 	resp, err := txn.If(cmp...).Then(
 		etcd.OpDelete(key),
 	).Commit()
@@ -363,8 +363,8 @@ func (s *Etcd) AtomicDelete(key string, previous *store.KVPair) error {
 }
 
 // List child nodes of a given directory
-func (s *Etcd) List(directory string) ([]*store.KVPair, error) {
-	pairs, err := s.get(store.Normalize(directory), true)
+func (s *Etcd) List(ctx context.Context, directory string) ([]*store.KVPair, error) {
+	pairs, err := s.get(ctx, store.Normalize(directory), true)
 	if err != nil {
 		return nil, err
 	}
@@ -373,8 +373,8 @@ func (s *Etcd) List(directory string) ([]*store.KVPair, error) {
 }
 
 // DeleteTree deletes a range of keys under a given directory
-func (s *Etcd) DeleteTree(directory string) error {
-	_, err := s.client.Delete(s.client.Ctx(), store.Normalize(directory), etcd.WithPrefix())
+func (s *Etcd) DeleteTree(ctx context.Context, directory string) error {
+	_, err := s.client.Delete(ctx, store.Normalize(directory), etcd.WithPrefix())
 	return err
 }
 
