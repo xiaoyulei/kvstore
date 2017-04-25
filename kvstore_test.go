@@ -1,6 +1,7 @@
 package kvstore
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -21,4 +22,15 @@ func TestNewStoreUnsupported(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, kv)
 	assert.Equal(t, "Backend storage not supported yet, please choose one of ", err.Error())
+}
+
+func TestAddStore(t *testing.T) {
+	testFun := func(addrs []string, options *store.Config) (store.Store, error) {
+		return nil, fmt.Errorf("testFun")
+	}
+
+	AddStore("test", testFun)
+	if _, ok := initializers["test"]; !ok {
+		assert.Equal(t, true, ok)
+	}
 }
