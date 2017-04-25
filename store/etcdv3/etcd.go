@@ -5,7 +5,6 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
 	etcd "github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/concurrency"
@@ -20,11 +19,6 @@ type Etcd struct {
 
 type etcdLock struct {
 	mu *concurrency.Mutex
-}
-
-// Register registers etcd to kvstore
-func Register() {
-	kvstore.AddStore(store.ETCDV3, New)
 }
 
 // New creates a new Etcd client given a list
