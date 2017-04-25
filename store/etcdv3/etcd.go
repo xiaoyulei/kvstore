@@ -235,11 +235,14 @@ func (s *Etcd) watch(ctx context.Context, key string, prefix bool, opt *store.Wa
 				return
 
 			case ch, ok := <-watchChan:
+				for _, e := range ch.Events {
+					resp <- s.makeWatchResponse(e, nil)
+				}
+
 				if !ok {
 					resp <- s.makeWatchResponse(nil, store.ErrWatchFail)
 					return
 				}
-				resp <- s.makeWatchResponse(&ch, nil)
 			}
 		}
 	}()
@@ -247,46 +250,47 @@ func (s *Etcd) watch(ctx context.Context, key string, prefix bool, opt *store.Wa
 	return resp, nil
 }
 
-func (s *Etcd) makeWatchResponse(resp *etcd.WatchResponse, err error) *store.WatchResponse {
+func (s *Etcd) makeWatchResponse(event *etcd.Event, err error) *store.WatchResponse {
 	if err != nil {
 		return &store.WatchResponse{Error: err}
 	}
 
-	for _, event := range resp.Events {
-		switch event.Type {
-		case mvccpb.PUT:
-			var preNode *store.KVPair
-			if event.PrevKv != nil {
-				preNode = &store.KVPair{
-					Key:   string(event.PrevKv.Key),
-					Value: string(event.PrevKv.Value),
-					Index: uint64(event.PrevKv.ModRevision),
-				}
-			}
-			return &store.WatchResponse{
-				Error:   resp.Err(),
-				Action:  store.ActionPut,
-				PreNode: preNode,
-				Node: &store.KVPair{
-					Key:   string(event.Kv.Key),
-					Value: string(event.Kv.Value),
-					Index: uint64(event.Kv.ModRevision),
-				},
-			}
+	if event == nil {
+		log.Fatal("event is nil, should not happen")
+	}
 
-		case mvccpb.DELETE:
-			return &store.WatchResponse{
-				Error:  resp.Err(),
-				Action: store.ActionDelete,
-				PreNode: &store.KVPair{
-					Key:   string(event.Kv.Key),
-					Value: string(event.Kv.Value),
-					Index: uint64(event.Kv.ModRevision),
-				},
-				Node: nil,
+	switch event.Type {
+	case mvccpb.PUT:
+		var preNode *store.KVPair
+		if event.PrevKv != nil {
+			preNode = &store.KVPair{
+				Key:   string(event.PrevKv.Key),
+				Value: string(event.PrevKv.Value),
+				Index: uint64(event.PrevKv.ModRevision),
 			}
 		}
+		return &store.WatchResponse{
+			Action:  store.ActionPut,
+			PreNode: preNode,
+			Node: &store.KVPair{
+				Key:   string(event.Kv.Key),
+				Value: string(event.Kv.Value),
+				Index: uint64(event.Kv.ModRevision),
+			},
+		}
+
+	case mvccpb.DELETE:
+		return &store.WatchResponse{
+			Action: store.ActionDelete,
+			PreNode: &store.KVPair{
+				Key:   string(event.Kv.Key),
+				Value: string(event.Kv.Value),
+				Index: uint64(event.Kv.ModRevision),
+			},
+			Node: nil,
+		}
 	}
+
 	return nil
 }
 
