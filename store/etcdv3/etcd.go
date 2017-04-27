@@ -253,39 +253,32 @@ func (s *Etcd) makeWatchResponse(event *etcd.Event, err error) *store.WatchRespo
 		log.Fatal("event is nil, should not happen")
 	}
 
+	var action string
 	switch event.Type {
 	case mvccpb.PUT:
-		var preNode *store.KVPair
-		if event.PrevKv != nil {
-			preNode = &store.KVPair{
-				Key:   string(event.PrevKv.Key),
-				Value: string(event.PrevKv.Value),
-				Index: uint64(event.PrevKv.ModRevision),
-			}
-		}
-		return &store.WatchResponse{
-			Action:  store.ActionPut,
-			PreNode: preNode,
-			Node: &store.KVPair{
-				Key:   string(event.Kv.Key),
-				Value: string(event.Kv.Value),
-				Index: uint64(event.Kv.ModRevision),
-			},
-		}
-
+		action = store.ActionPut
 	case mvccpb.DELETE:
-		return &store.WatchResponse{
-			Action: store.ActionDelete,
-			PreNode: &store.KVPair{
-				Key:   string(event.Kv.Key),
-				Value: string(event.Kv.Value),
-				Index: uint64(event.Kv.ModRevision),
-			},
-			Node: nil,
+		action = store.ActionDelete
+	}
+
+	var preNode *store.KVPair
+	if event.PrevKv != nil {
+		preNode = &store.KVPair{
+			Key:   string(event.PrevKv.Key),
+			Value: string(event.PrevKv.Value),
+			Index: uint64(event.PrevKv.ModRevision),
 		}
 	}
 
-	return nil
+	return &store.WatchResponse{
+		Action:  action,
+		PreNode: preNode,
+		Node: &store.KVPair{
+			Key:   string(event.Kv.Key),
+			Value: string(event.Kv.Value),
+			Index: uint64(event.Kv.ModRevision),
+		},
+	}
 }
 
 // AtomicPut puts a value at "key" if the key has not been
