@@ -1,12 +1,14 @@
 package zookeeper
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"golang.org/x/net/context"
 
+	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
 	zk "github.com/samuel/go-zookeeper/zk"
 )
@@ -32,6 +34,11 @@ type zookeeperLock struct {
 	lock   *zk.Lock
 	key    string
 	value  string
+}
+
+// Register registers zookeeper to kvstore
+func Register() {
+	kvstore.AddStore(store.ZK, New)
 }
 
 // New creates a new Zookeeper client given a
@@ -199,6 +206,7 @@ func (s *Zookeeper) Watch(ctx context.Context, key string, opt *store.WatchOptio
 
 			select {
 			case e := <-eventCh:
+				fmt.Printf("======== %#v\n", e)
 				if e.Type == zk.EventNodeDataChanged {
 					if entry, err := s.Get(ctx, fkey); err == nil {
 						resp <- &store.WatchResponse{

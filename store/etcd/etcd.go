@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
 	etcd "github.com/coreos/etcd/client"
 )
@@ -45,6 +46,11 @@ const (
 	periodicSync   = 1 * time.Minute
 	defaultLockTTL = 20 * time.Second
 )
+
+// Register registers etcd to kvstore
+func Register() {
+	kvstore.AddStore(store.ETCD, New)
+}
 
 // New creates a new Etcd client given a list
 // of endpoints and an optional tls config
