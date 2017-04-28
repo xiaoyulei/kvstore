@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
 	zk "github.com/samuel/go-zookeeper/zk"
 )
@@ -32,6 +33,11 @@ type zookeeperLock struct {
 	lock   *zk.Lock
 	key    string
 	value  string
+}
+
+// Register registers zookeeper to kvstore
+func Register() {
+	kvstore.AddStore(store.ZK, New)
 }
 
 // New creates a new Zookeeper client given a
