@@ -200,34 +200,47 @@ func (s *Zookeeper) Watch(ctx context.Context, key string, opt *store.WatchOptio
 		for {
 			data, meta, eventCh, err := s.client.GetW(fkey)
 			if err != nil {
+				fmt.Printf("=== getW fail ==== %#v===%#v===\n", fkey, err)
+
 				resp <- &store.WatchResponse{Error: err}
 				return
 			}
 
 			select {
 			case e := <-eventCh:
-				fmt.Printf("======== %#v\n", e)
+				fmt.Printf("===event ==== %#v===%v====%#v===\n", e, string(data), meta)
+
 				if e.Type == zk.EventNodeDataChanged {
-					if entry, err := s.Get(ctx, fkey); err == nil {
+					preNode := &store.KVPair{
+						Key:   fkey,
+						Value: string(data),
+						Index: uint64(meta.Version),
+					}
+
+					entry, err := s.Get(ctx, fkey)
+					if err == nil {
+						fmt.Printf("===after get success ==== %#v==========%#v\n", e, entry)
 						resp <- &store.WatchResponse{
-							Action: store.ActionPut,
-							Node:   entry,
-							PreNode: &store.KVPair{
-								Key:   fkey,
-								Value: string(data),
-								Index: uint64(meta.Version),
-							},
+							Action:  store.ActionPut,
+							Node:    entry,
+							PreNode: preNode,
 						}
+						continue
 					}
-				} else if e.Type == zk.EventNodeDeleted {
-					resp <- &store.WatchResponse{
-						Action: store.ActionDelete,
-						PreNode: &store.KVPair{
-							Key:   fkey,
-							Value: string(data),
-							Index: uint64(meta.Version),
-						},
+
+					if err == zk.ErrNoNode {
+						fmt.Printf("===after get fail %v ==== %#v==========%#v\n", err, e, entry)
+
+						resp <- &store.WatchResponse{
+							Action:  store.ActionDelete,
+							Node:    &store.KVPair{Key: fkey},
+							PreNode: preNode,
+						}
+						continue
 					}
+
+					resp <- &store.WatchResponse{Error: err}
+					return
 				}
 
 			case <-ctx.Done():
