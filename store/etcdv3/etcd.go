@@ -1,8 +1,6 @@
 package etcdv3
 
 import (
-	"log"
-
 	"golang.org/x/net/context"
 
 	"github.com/YuleiXiao/kvstore/store"
@@ -44,7 +42,7 @@ func New(addrs []string, options *store.Config) (store.Store, error) {
 
 	c, err := etcd.New(*cfg)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	s := &Etcd{
@@ -99,7 +97,7 @@ func (s *Etcd) Put(ctx context.Context, key, value string, opts *store.WriteOpti
 	if opts != nil {
 		resp, err := s.client.Grant(ctx, int64(opts.TTL.Seconds()))
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		_, err = s.client.Put(ctx, key, value, etcd.WithLease(resp.ID))
 		return err
@@ -247,10 +245,6 @@ func (s *Etcd) watch(ctx context.Context, key string, prefix bool, opt *store.Wa
 func (s *Etcd) makeWatchResponse(event *etcd.Event, err error) *store.WatchResponse {
 	if err != nil {
 		return &store.WatchResponse{Error: err}
-	}
-
-	if event == nil {
-		log.Fatal("event is nil, should not happen")
 	}
 
 	var action string
