@@ -2,7 +2,6 @@ package etcd
 
 import (
 	"crypto/tls"
-	"log"
 	"net"
 	"net/http"
 	"time"
@@ -78,7 +77,7 @@ func New(addrs []string, options *store.Config) (store.Store, error) {
 
 	c, err := etcd.New(*cfg)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	s.client = etcd.NewKeysAPI(c)
