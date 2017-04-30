@@ -4,8 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
 	"github.com/YuleiXiao/kvstore/testutils"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -27,6 +29,18 @@ func makeEtcdClient(t *testing.T) store.Store {
 	}
 
 	return kv
+}
+
+func TestRegister(t *testing.T) {
+	Register()
+
+	kv, err := kvstore.NewStore(store.ETCD, []string{client}, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, kv)
+
+	if _, ok := kv.(*Etcd); !ok {
+		t.Fatal("Error registering and initializing etcd")
+	}
 }
 
 func TestEtcdStore(t *testing.T) {

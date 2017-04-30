@@ -471,7 +471,7 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	renewCh := make(chan struct{})
 
 	// We should be able to create a new lock on key
-	lock := otherConn.NewLock(key, &store.LockOptions{
+	lock := kv.NewLock(key, &store.LockOptions{
 		Value:     value,
 		TTL:       2 * time.Second,
 		RenewLock: renewCh,
@@ -488,8 +488,6 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	}
 	assert.Equal(t, pair.Value, value)
 	assert.NotEqual(t, pair.Index, 0)
-
-	time.Sleep(3 * time.Second)
 
 	done := make(chan struct{})
 	value = "foobar"
@@ -528,12 +526,13 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 		break
 	}
 
+	<-done
+
 	locked := make(chan struct{})
-	valueNew := "bar"
 
 	// Lock should now succeed for the other client
 	go func(<-chan struct{}) {
-		lock.Lock(context.TODO())
+		lockNew.Lock(context.TODO())
 		locked <- struct{}{}
 	}(locked)
 
@@ -550,10 +549,10 @@ func testLockTTL(t *testing.T, kv store.Store, otherConn store.Store) {
 	if assert.NotNil(t, pair) {
 		assert.NotNil(t, pair.Value)
 	}
-	assert.Equal(t, pair.Value, valueNew)
+	assert.Equal(t, value, pair.Value)
 	assert.NotEqual(t, pair.Index, 0)
 
-	lock.Unlock(context.TODO())
+	lockNew.Unlock(context.TODO())
 }
 
 func testLockTTLV3(t *testing.T, kv store.Store, otherConn store.Store) {
