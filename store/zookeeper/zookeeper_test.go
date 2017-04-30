@@ -4,8 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
 	"github.com/YuleiXiao/kvstore/testutils"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -25,6 +27,18 @@ func makeZkClient(t *testing.T) store.Store {
 	}
 
 	return kv
+}
+
+func TestRegister(t *testing.T) {
+	Register()
+
+	kv, err := kvstore.NewStore(store.ZK, []string{client}, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, kv)
+
+	if _, ok := kv.(*Zookeeper); !ok {
+		t.Fatal("Error registering and initializing zookeeper")
+	}
 }
 
 func TestZkStore(t *testing.T) {
