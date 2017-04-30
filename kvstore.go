@@ -6,9 +6,6 @@ import (
 	"strings"
 
 	"github.com/YuleiXiao/kvstore/store"
-	"github.com/YuleiXiao/kvstore/store/etcd"
-	"github.com/YuleiXiao/kvstore/store/etcdv3"
-	"github.com/YuleiXiao/kvstore/store/zookeeper"
 )
 
 // Initialize creates a new Store object, initializing the client
@@ -27,12 +24,6 @@ var (
 		return strings.Join(keys, ", ")
 	}()
 )
-
-func init() {
-	AddStore(store.ETCD, etcd.New)
-	AddStore(store.ETCDV3, etcdv3.New)
-	AddStore(store.ZK, zookeeper.New)
-}
 
 // NewStore creates an instance of store
 func NewStore(backend string, addrs []string, options *store.Config) (store.Store, error) {

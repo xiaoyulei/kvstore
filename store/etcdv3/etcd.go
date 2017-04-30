@@ -3,11 +3,17 @@ package etcdv3
 import (
 	"golang.org/x/net/context"
 
+	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
 	etcd "github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/concurrency"
 	mvccpb "github.com/coreos/etcd/mvcc/mvccpb"
 )
+
+// Register registers etcd to kvstore
+func Register() {
+	kvstore.AddStore(store.ETCDV3, New)
+}
 
 // Etcd is the receiver type for the
 // Store interface
