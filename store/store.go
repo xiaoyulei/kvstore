@@ -2,6 +2,7 @@ package store
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -113,6 +114,9 @@ type Store interface {
 	// Atomic delete of a single value
 	AtomicDelete(ctx context.Context, key string, previous *KVPair) error
 
+	// NewTxn creates a transaction Txn.
+	NewTxn(ctx context.Context) (Txn, error)
+
 	// Close the store connection
 	Close()
 }
@@ -122,6 +126,11 @@ type KVPair struct {
 	Key   string
 	Value string
 	Index uint64
+}
+
+func (kv *KVPair) String() string {
+	data, _ := json.Marshal(kv)
+	return string(data)
 }
 
 // LockOptions contains optional request parameters
@@ -145,6 +154,11 @@ type WatchResponse struct {
 	Node    *KVPair
 }
 
+func (wr *WatchResponse) String() string {
+	data, _ := json.Marshal(wr)
+	return string(data)
+}
+
 // WriteOptions contains optional request parameters
 type WriteOptions struct {
 	IsDir bool // useless in etcdv3
@@ -154,4 +168,44 @@ type WriteOptions struct {
 // WatchOptions contains optional request parameters
 type WatchOptions struct {
 	Index uint64
+}
+
+// OpResponse will be returned when transaction commit.
+type OpResponse struct {
+	Pairs []*KVPair // fill on Get/List
+}
+
+// TxnResponse will be returned when transaction commit.
+type TxnResponse struct {
+	CompareSuccess bool
+	Responses      []*OpResponse
+}
+
+func (t *TxnResponse) String() string {
+	data, _ := json.Marshal(t)
+	return string(data)
+}
+
+// Txn provides transaction interface.
+type Txn interface {
+	Begin()
+	Commit() (*TxnResponse, error)
+
+	// compare operation. Operator should only be "=" "!=" ">" "<".
+	IfValue(key, operator, value string)
+	IfCreateRevision(key, operator string, revision int64)
+	IfModifyRevision(key, operator string, revision int64)
+
+	// create operation
+	Put(key, value string, options *WriteOptions)
+	Get(key string)
+	List(dir string)
+	Delete(key string)
+	DeleteTree(key string)
+
+	// default operation execute when compare success.
+	// If you want to execute when compare fail, you
+	// should call "Else", all operation after "Else" will
+	// execute when compare fail.
+	Else()
 }

@@ -492,6 +492,11 @@ func (l *zookeeperLock) Unlock(ctx context.Context) error {
 	return l.lock.Unlock()
 }
 
+// NewTxn creates a transaction Txn.
+func (s *Zookeeper) NewTxn(ctx context.Context) (store.Txn, error) {
+	return nil, store.ErrCallNotSupported
+}
+
 // Close closes the client connection
 func (s *Zookeeper) Close() {
 	s.client.Close()

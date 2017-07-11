@@ -378,6 +378,14 @@ func (s *Etcd) NewLock(key string, opt *store.LockOptions) store.Locker {
 	return concurrency.NewMutex(session, key)
 }
 
+// NewTxn creates a transaction Txn.
+func (s *Etcd) NewTxn(ctx context.Context) (store.Txn, error) {
+	return &txn{
+		ctx:    ctx,
+		client: s.client,
+	}, nil
+}
+
 // Close closes the client connection
 func (s *Etcd) Close() {
 	s.client.Close()

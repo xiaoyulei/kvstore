@@ -1,7 +1,7 @@
 language: go
 
 go:
-  - 1.8.1
+  - 1.8.3
 
 # let us have speedy Docker-based Travis workers
 sudo: false
@@ -15,10 +15,9 @@ install:
   - go get github.com/golang/lint/golint
   - go get github.com/mattn/goveralls
   - go get github.com/GeertJohan/fgt
-#  - cd $GOPATH/src/google.golang.org/grpc;git checkout v1.0.4;cd -
 
 script:
-  - $GOPATH/src/github.com/coreos/etcd/build
+  - cd $GOPATH/src/github.com/coreos/etcd;git checkout v3.2.2;$GOPATH/src/github.com/coreos/etcd/build;cd -
   - $GOPATH/src/github.com/coreos/etcd/bin/etcd --listen-client-urls 'http://0.0.0.0:2379' --advertise-client-urls 'http://127.0.0.1:2379' >/dev/null 2>&1 &
   - ./zk/bin/zkServer.sh start ./zk/conf/zoo.cfg 1> /dev/null
   - sleep 5
