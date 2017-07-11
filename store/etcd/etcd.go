@@ -572,6 +572,11 @@ func (l *etcdLock) Unlock(ctx context.Context) error {
 	return nil
 }
 
+// NewTxn creates a transaction Txn.
+func (s *Etcd) NewTxn(ctx context.Context) (store.Txn, error) {
+	return nil, store.ErrCallNotSupported
+}
+
 // Close closes the client connection
 func (s *Etcd) Close() {
 	return

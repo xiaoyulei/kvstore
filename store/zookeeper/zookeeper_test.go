@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
 	"github.com/YuleiXiao/kvstore/testutils"
@@ -41,6 +43,13 @@ func TestRegister(t *testing.T) {
 	}
 }
 
+func testNewTxn(t *testing.T, kv store.Store) {
+	_, err := kv.NewTxn(context.Background())
+	if err != store.ErrCallNotSupported {
+		t.Errorf("Txn should not be supported in etcdv2. %v", err)
+	}
+}
+
 func TestZkStore(t *testing.T) {
 	kv := makeZkClient(t)
 	ttlKV := makeZkClient(t)
@@ -51,4 +60,6 @@ func TestZkStore(t *testing.T) {
 	testutils.RunTestWatch(t, kv)
 	testutils.RunTestLock(t, kv)
 	testutils.RunTestTTL(t, kv, ttlKV)
+
+	testNewTxn(t, kv)
 }
