@@ -492,6 +492,11 @@ func (l *zookeeperLock) Unlock(ctx context.Context) error {
 	return l.lock.Unlock()
 }
 
+// Compact compacts etcd KV history before the given rev. But not support in zookeeper.
+func (s *Zookeeper) Compact(ctx context.Context, rev int64, wait bool) error {
+	return store.ErrCallNotSupported
+}
+
 // NewTxn creates a transaction Txn.
 func (s *Zookeeper) NewTxn(ctx context.Context) (store.Txn, error) {
 	return nil, store.ErrCallNotSupported

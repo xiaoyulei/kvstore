@@ -378,6 +378,16 @@ func (s *Etcd) NewLock(key string, opt *store.LockOptions) store.Locker {
 	return concurrency.NewMutex(session, key)
 }
 
+// Compact compacts etcd KV history before the given rev.
+func (s *Etcd) Compact(ctx context.Context, rev int64, wait bool) error {
+	if wait {
+		_, err := s.client.Compact(ctx, rev, etcd.WithCompactPhysical())
+		return err
+	}
+	_, err := s.client.Compact(ctx, rev)
+	return err
+}
+
 // NewTxn creates a transaction Txn.
 func (s *Etcd) NewTxn(ctx context.Context) (store.Txn, error) {
 	return &txn{
