@@ -572,7 +572,12 @@ func (l *etcdLock) Unlock(ctx context.Context) error {
 	return nil
 }
 
-// NewTxn creates a transaction Txn.
+// Compact compacts etcd KV history before the given rev. But not support in etcdv2.
+func (s *Etcd) Compact(ctx context.Context, rev int64, wait bool) error {
+	return store.ErrCallNotSupported
+}
+
+// NewTxn creates a transaction Txn. But not support in etcdv2.
 func (s *Etcd) NewTxn(ctx context.Context) (store.Txn, error) {
 	return nil, store.ErrCallNotSupported
 }

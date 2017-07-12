@@ -114,6 +114,9 @@ type Store interface {
 	// Atomic delete of a single value
 	AtomicDelete(ctx context.Context, key string, previous *KVPair) error
 
+	// Compact compacts etcd KV history before the given rev.
+	Compact(ctx context.Context, rev int64, wait bool) error
+
 	// NewTxn creates a transaction Txn.
 	NewTxn(ctx context.Context) (Txn, error)
 
