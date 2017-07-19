@@ -379,12 +379,12 @@ func (s *Etcd) NewLock(key string, opt *store.LockOptions) store.Locker {
 }
 
 // Compact compacts etcd KV history before the given rev.
-func (s *Etcd) Compact(ctx context.Context, rev int64, wait bool) error {
+func (s *Etcd) Compact(ctx context.Context, rev uint64, wait bool) error {
 	if wait {
-		_, err := s.client.Compact(ctx, rev, etcd.WithCompactPhysical())
+		_, err := s.client.Compact(ctx, int64(rev), etcd.WithCompactPhysical())
 		return err
 	}
-	_, err := s.client.Compact(ctx, rev)
+	_, err := s.client.Compact(ctx, int64(rev))
 	return err
 }
 

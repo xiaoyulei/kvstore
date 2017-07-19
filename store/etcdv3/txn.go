@@ -34,6 +34,7 @@ func (t *txn) Commit() (*store.TxnResponse, error) {
 
 	txnResp := &store.TxnResponse{}
 	txnResp.CompareSuccess = resp.Succeeded
+	txnResp.Revision = uint64(resp.Header.Revision)
 	for _, r := range resp.Responses {
 		opResp := &store.OpResponse{}
 
@@ -44,9 +45,11 @@ func (t *txn) Commit() (*store.TxnResponse, error) {
 		} else if rangeResp := r.GetResponseRange(); rangeResp != nil {
 			for _, kv := range rangeResp.Kvs {
 				opResp.Pairs = append(opResp.Pairs, &store.KVPair{
-					Key:   string(kv.Key),
-					Value: string(kv.Value),
-					Index: uint64(kv.ModRevision),
+					Key:     string(kv.Key),
+					Value:   string(kv.Value),
+					Index:   uint64(kv.ModRevision),
+					Version: uint64(kv.Version),
+					Lease:   uint64(kv.Lease),
 				})
 			}
 		}
@@ -60,12 +63,16 @@ func (t *txn) IfValue(key, operator string, value string) {
 	t.cmp = append(t.cmp, etcd.Compare(etcd.Value(key), operator, value))
 }
 
-func (t *txn) IfCreateRevision(key, operator string, revision int64) {
-	t.cmp = append(t.cmp, etcd.Compare(etcd.CreateRevision(key), operator, revision))
+func (t *txn) IfVersion(key, operator string, version uint64) {
+	t.cmp = append(t.cmp, etcd.Compare(etcd.Version(key), operator, int64(version)))
 }
 
-func (t *txn) IfModifyRevision(key, operator string, revision int64) {
-	t.cmp = append(t.cmp, etcd.Compare(etcd.ModRevision(key), operator, revision))
+func (t *txn) IfCreateRevision(key, operator string, revision uint64) {
+	t.cmp = append(t.cmp, etcd.Compare(etcd.CreateRevision(key), operator, int64(revision)))
+}
+
+func (t *txn) IfModifyRevision(key, operator string, revision uint64) {
+	t.cmp = append(t.cmp, etcd.Compare(etcd.ModRevision(key), operator, int64(revision)))
 }
 
 func (t *txn) Put(key, value string, options *store.WriteOptions) {

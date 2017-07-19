@@ -573,7 +573,7 @@ func (l *etcdLock) Unlock(ctx context.Context) error {
 }
 
 // Compact compacts etcd KV history before the given rev. But not support in etcdv2.
-func (s *Etcd) Compact(ctx context.Context, rev int64, wait bool) error {
+func (s *Etcd) Compact(ctx context.Context, rev uint64, wait bool) error {
 	return store.ErrCallNotSupported
 }
 
