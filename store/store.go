@@ -115,7 +115,7 @@ type Store interface {
 	AtomicDelete(ctx context.Context, key string, previous *KVPair) error
 
 	// Compact compacts etcd KV history before the given rev.
-	Compact(ctx context.Context, rev int64, wait bool) error
+	Compact(ctx context.Context, rev uint64, wait bool) error
 
 	// NewTxn creates a transaction Txn.
 	NewTxn(ctx context.Context) (Txn, error)
@@ -129,6 +129,10 @@ type KVPair struct {
 	Key   string
 	Value string
 	Index uint64
+
+	// only for etcdv3
+	Version uint64
+	Lease   uint64
 }
 
 func (kv *KVPair) String() string {
@@ -181,6 +185,7 @@ type OpResponse struct {
 // TxnResponse will be returned when transaction commit.
 type TxnResponse struct {
 	CompareSuccess bool
+	Revision       uint64
 	Responses      []*OpResponse
 }
 
@@ -196,8 +201,9 @@ type Txn interface {
 
 	// compare operation. Operator should only be "=" "!=" ">" "<".
 	IfValue(key, operator, value string)
-	IfCreateRevision(key, operator string, revision int64)
-	IfModifyRevision(key, operator string, revision int64)
+	IfVersion(key, operator string, version uint64)
+	IfCreateRevision(key, operator string, revision uint64)
+	IfModifyRevision(key, operator string, revision uint64)
 
 	// create operation
 	Put(key, value string, options *WriteOptions)
