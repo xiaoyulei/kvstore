@@ -88,9 +88,11 @@ func (s *Etcd) get(ctx context.Context, key string, prefix bool) (pairs []*store
 	pairs = []*store.KVPair{}
 	for _, kv := range resp.Kvs {
 		pairs = append(pairs, &store.KVPair{
-			Key:   string(kv.Key),
-			Value: string(kv.Value),
-			Index: uint64(kv.ModRevision),
+			Key:     string(kv.Key),
+			Value:   string(kv.Value),
+			Index:   uint64(kv.ModRevision),
+			Version: uint64(kv.Version),
+			Lease:   uint64(kv.Lease),
 		})
 	}
 
@@ -260,9 +262,11 @@ func (s *Etcd) makeWatchResponse(event *etcd.Event, err error) *store.WatchRespo
 	var preNode *store.KVPair
 	if event.PrevKv != nil {
 		preNode = &store.KVPair{
-			Key:   string(event.PrevKv.Key),
-			Value: string(event.PrevKv.Value),
-			Index: uint64(event.PrevKv.ModRevision),
+			Key:     string(event.PrevKv.Key),
+			Value:   string(event.PrevKv.Value),
+			Index:   uint64(event.PrevKv.ModRevision),
+			Version: uint64(event.PrevKv.Version),
+			Lease:   uint64(event.PrevKv.Lease),
 		}
 	}
 
@@ -270,9 +274,11 @@ func (s *Etcd) makeWatchResponse(event *etcd.Event, err error) *store.WatchRespo
 		Action:  action,
 		PreNode: preNode,
 		Node: &store.KVPair{
-			Key:   string(event.Kv.Key),
-			Value: string(event.Kv.Value),
-			Index: uint64(event.Kv.ModRevision),
+			Key:     string(event.Kv.Key),
+			Value:   string(event.Kv.Value),
+			Index:   uint64(event.Kv.ModRevision),
+			Version: uint64(event.PrevKv.Version),
+			Lease:   uint64(event.PrevKv.Lease),
 		},
 	}
 }
