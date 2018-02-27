@@ -1,7 +1,7 @@
 package etcdv3
 
 import (
-	"golang.org/x/net/context"
+	"context"
 
 	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"
