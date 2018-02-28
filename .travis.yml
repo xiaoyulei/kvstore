@@ -1,7 +1,7 @@
 language: go
 
 go:
-  - 1.9
+  - "1.10"
 
 # let us have speedy Docker-based Travis workers
 sudo: false
@@ -10,28 +10,31 @@ before_script:
 #  - ci/travis_etcd.sh 3.0.12
   - ci/travis_zk.sh 3.5.1-alpha
 
-install:
-  - go get -t -d ./...
+script:
+  - cd $GOPATH; mkdir -p build; cd build; git clone https://github.com/coreos/etcd.git
+  - cd etcd;git checkout v3.3.1;./build
+  - ln -s $GOPATH/build/etcd/cmd/vendor $GOPATH/build/src
+  - mv $GOPATH/src/github.com/YuleiXiao $GOPATH/build/src/github.com
+  - cd $GOPATH/build; export GOPATH=`pwd`; export PATH=$GOPATH/bin:$PATH
+  - cd $GOPATH/src/github.com/YuleiXiao/kvstore
+  - go get -t -v ./...
   - go get github.com/golang/lint/golint
   - go get github.com/mattn/goveralls
   - go get github.com/GeertJohan/fgt
 
-script:
-  - cd $GOPATH/src/github.com/coreos/etcd;git checkout v3.2.7;$GOPATH/src/github.com/coreos/etcd/build;cd -
-  - cd $GOPATH/src/github.com/;rm -rf ugorji;ln -s $GOPATH/src/github.com/coreos/etcd/cmd/vendor/github.com/ugorji;cd -
-  - cd $GOPATH/src/;rm -rf google.golang.org;ln -s $GOPATH/src/github.com/coreos/etcd/cmd/vendor/google.golang.org;cd -
   - $GOPATH/src/github.com/coreos/etcd/bin/etcd --listen-client-urls 'http://0.0.0.0:2379' --advertise-client-urls 'http://127.0.0.1:2379' >/dev/null 2>&1 &
   - ./zk/bin/zkServer.sh start ./zk/conf/zoo.cfg 1> /dev/null
   - sleep 5
-  - echo very-secure|ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=[localhost:2379] user add --interactive=false test
-  - echo root|ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=[localhost:2379] user add --interactive=false root
-  - ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=[localhost:2379] role add root
-  - ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=[localhost:2379] user grant-role root root
-  - ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=[localhost:2379] user grant-role test root
-  - ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=[localhost:2379] auth enable
-  - ci/validate-gofmt
+  - echo very-secure|ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=localhost:2379 user add --interactive=false test
+  - echo root|ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=localhost:2379 user add --interactive=false root
+  - ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=localhost:2379 role add root
+  - ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=localhost:2379 user grant-role root root
+  - ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=localhost:2379 user grant-role test root
+  - ETCDCTL_API=3 $GOPATH/src/github.com/coreos/etcd/bin/etcdctl --endpoints=localhost:2379 auth enable
+  - cd $GOPATH/src/github.com/YuleiXiao/kvstore
+  - fgt gofmt -s -d -l .
   - go vet ./...
   - fgt golint ./...
   - go test -v -race ./...
-  - ci/coverage
+  - ci/coverage.sh
   - goveralls -service=travis-ci -coverprofile=goverage.report

@@ -1,12 +1,11 @@
 package store
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"time"
-
-	"golang.org/x/net/context"
 )
 
 const (

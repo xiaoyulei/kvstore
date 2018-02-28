@@ -1,12 +1,11 @@
 package etcd
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
 	"net/http"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"github.com/YuleiXiao/kvstore"
 	"github.com/YuleiXiao/kvstore/store"

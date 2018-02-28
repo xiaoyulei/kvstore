@@ -1,11 +1,10 @@
 package testutils
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"github.com/YuleiXiao/kvstore/store"
 	"github.com/stretchr/testify/assert"
@@ -429,7 +428,8 @@ func testLockUnlockV3(t *testing.T, kv store.Store) {
 	err = lock.Unlock(context.TODO())
 	assert.NoError(t, err)
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*3)
+	ctx, f := context.WithTimeout(context.Background(), time.Second*3)
+	defer f()
 	// Lock should succeed again
 	err = lock.Lock(ctx)
 	assert.NoError(t, err)

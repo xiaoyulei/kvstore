@@ -1,13 +1,12 @@
 package etcdv3
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/YuleiXiao/kvstore/store"
-
-	"golang.org/x/net/context"
 )
 
 func TestEtcdTxn(t *testing.T) {

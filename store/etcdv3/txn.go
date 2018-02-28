@@ -1,10 +1,10 @@
 package etcdv3
 
 import (
+	"context"
+
 	"github.com/YuleiXiao/kvstore/store"
 	etcd "github.com/coreos/etcd/clientv3"
-
-	"golang.org/x/net/context"
 )
 
 type txn struct {
